@@ -14,7 +14,7 @@ Dwarf fortress Built-in Macro is useful to repeat small task, but not really hel
 
 # Playground
 
-[gh-pages](https://eunchuldev.github.io/df-fortforge/)
+[playground](https://eunchuldev.github.io/df-fortforge/)
 
 
 # Who can use DF FortForge
@@ -32,4 +32,4 @@ Dwarf fortress Built-in Macro is useful to repeat small task, but not really hel
 
 # How it works
 
-It generates a DF macro of the given fort design. the generated macro file can be loaded into Dwarf Fortress.
+It generates a DF macro of the given fort design. the generated macro file can be loaded into Dwarf Fortress. You can visit the [playground](https://eunchuldev.github.io/df-fortforge/) and click the `gen macro` button to check the detail instruction.
