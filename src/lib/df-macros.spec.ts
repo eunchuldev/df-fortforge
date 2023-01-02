@@ -14,7 +14,6 @@ test('genMacros', () => {
   tilemap.stairs([1, 2, 1, 0, 0, 5])
 
   const res = genMacro('test', tilemap, [0, 0, 0])
-  console.log(res)
   expect(res).toBe(`test
 		D_DESIGNATE_DIG
 	End of group
@@ -26,7 +25,7 @@ test('genMacros', () => {
 	End of group
 		SELECT
 	End of group
-		KEYBOARD_CURSOR_UPRIGHT
+		KEYBOARD_CURSOR_DOWNRIGHT
 	End of group
 		SELECT
 	End of group
@@ -38,7 +37,7 @@ test('genMacros', () => {
 	End of group
 		SELECT
 	End of group
-		KEYBOARD_CURSOR_DOWN
+		KEYBOARD_CURSOR_UP
 	End of group
 		SELECT
 	End of group
@@ -50,7 +49,17 @@ test('genMacros', () => {
 	End of group
 		SELECT
 	End of group
-		KEYBOARD_CURSOR_UP
+		KEYBOARD_CURSOR_DOWN
+	End of group
+		SELECT
+	End of group
+		CURSOR_DOWN_Z
+	End of group
+		CURSOR_DOWN_Z
+	End of group
+		KEYBOARD_CURSOR_DOWNLEFT
+	End of group
+		DESIGNATE_STAIR_UPDOWN
 	End of group
 		SELECT
 	End of group
@@ -58,7 +67,13 @@ test('genMacros', () => {
 	End of group
 		CURSOR_UP_Z
 	End of group
-		KEYBOARD_CURSOR_UP
+		CURSOR_UP_Z
+	End of group
+		CURSOR_UP_Z
+	End of group
+		SELECT
+	End of group
+		KEYBOARD_CURSOR_RIGHT
 	End of group
 		DESIGNATE_STAIR_UPDOWN
 	End of group
@@ -76,23 +91,6 @@ test('genMacros', () => {
 	End of group
 		SELECT
 	End of group
-		CURSOR_UP_Z
-	End of group
-		KEYBOARD_CURSOR_LEFT
-	End of group
-		DESIGNATE_STAIR_UPDOWN
-	End of group
-		SELECT
-	End of group
-		CURSOR_UP_Z
-	End of group
-		CURSOR_UP_Z
-	End of group
-		CURSOR_UP_Z
-	End of group
-		CURSOR_UP_Z
-	End of group
-		SELECT
-	End of group
-End of macro`)
+End of macro
+`)
 })

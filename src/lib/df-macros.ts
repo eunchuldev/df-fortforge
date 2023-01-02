@@ -86,7 +86,20 @@ export function genMacro(
     emptyTile: -1,
     preferVerticalQube: true,
   }).map((t) => ({ ...t, tile: Tile.UpDownStair }))
-  const routedCovers = planCoverRoute([...nostairCovers, ...stairCovers], startPos)
+  const routedCovers = planCoverRoute(
+    [...nostairCovers, ...stairCovers],
+    startPos,
+    0,
+    (p: Qube, q: Qube) => {
+      return (
+        Math.abs(p[2] + p[5] * 0.5 - q[2] - q[5] * 0.5) +
+        Math.max(
+          Math.abs(p[0] + p[3] * 0.5 - q[0] - q[3] * 0.5),
+          Math.abs(p[1] + p[4] * 0.5 - q[1] - q[4] * 0.5)
+        )
+      )
+    }
+  )
   let pos = startPos
   for (const cover of routedCovers) {
     pos = genCoverMacro(pos, cover, commands, state)

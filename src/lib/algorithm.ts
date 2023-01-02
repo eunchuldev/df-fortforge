@@ -55,6 +55,7 @@ export function decomposeIntoQubes<T>({
   qube,
   emptyTile,
   preferVerticalQube = false,
+  preferWideQube = false,
 }: DecomposeIntoQubesOptions<T>): Cover<T>[] {
   let cover: Cover<T> | null = null
   const covers: Cover<T>[] = []
@@ -74,7 +75,21 @@ export function decomposeIntoQubes<T>({
         let expanding = false
         do {
           expanding = false
-          for (const n of preferVerticalQube ? [2, 0, 1] : [0, 1, 2]) {
+          const dimensionOrder = preferVerticalQube ? [2, 0, 1] : [0, 1, 2]
+          if (preferVerticalQube) {
+            if (Math.random() > 0.5) {
+              dimensionOrder[1] = 1 - dimensionOrder[1]
+              dimensionOrder[2] = 1 - dimensionOrder[2]
+            }
+          } else if (preferWideQube) {
+            if (Math.random() > 0.5) {
+              dimensionOrder[0] = 1 - dimensionOrder[0]
+              dimensionOrder[1] = 1 - dimensionOrder[1]
+            }
+          } else {
+            dimensionOrder.sort(() => 0.5 - Math.random())
+          }
+          for (const n of dimensionOrder) {
             for (const i of [cover.qube[n] - 1, cover.qube[n] + cover.qube[n + 3] + 1]) {
               let expandable = true
               for (
@@ -128,7 +143,8 @@ export function decomposeIntoQubes<T>({
                 cover.qube[n + 3] = Math.max(i - cover.qube[n], cover.qube[n + 3] + 1)
               }
             }
-            if (expanding && preferVerticalQube) break
+            if (expanding && preferVerticalQube && n === dimensionOrder[0]) break
+            else if (expanding && preferWideQube && n === dimensionOrder[1]) break
           }
         } while (expanding)
         covers.push(cover)
@@ -142,7 +158,7 @@ export function decomposeIntoQubes<T>({
 /*
  * Solve Hamiltonian Shortest Path
  */
-function _solveHSP(
+function _solveHSPBnB(
   sortedAdj: number[][],
   adj: number[][],
   V: number,
@@ -164,13 +180,13 @@ function _solveHSP(
     return
   }
   for (let i = 0; i < V; ++i) {
-    if (adj[path[level - 1]][i] !== 0 && !visited[i]) {
+    if (adj[path[level - 1]][i] !== Infinity && adj[path[level - 1]][i] !== 0 && !visited[i]) {
       const nextWeight = weight + adj[path[level - 1]][i]
       const nextBound = bound - (sortedAdj[i][0] + sortedAdj[level - 1][level === 1 ? 0 : 1]) * 0.5
       if (nextBound + nextWeight < best.weight) {
         path[level] = i
         visited[i] = true
-        _solveHSP(
+        _solveHSPBnB(
           sortedAdj,
           adj,
           V,
@@ -189,7 +205,7 @@ function _solveHSP(
   }
 }
 
-export function solveHSP(adj: number[][], source = 0, shouldReturn = false) {
+export function solveHSPBnB(adj: number[][], source = 0, shouldReturn = false) {
   const V = adj.length
   let bound = 0
   const visited = <boolean[]>Array(V + (shouldReturn ? 1 : 0)).fill(false)
@@ -207,11 +223,58 @@ export function solveHSP(adj: number[][], source = 0, shouldReturn = false) {
   visited[source] = true
   path[0] = source
   const sortedAdj: number[][] = adj.map((row) => [...row].sort())
-  _solveHSP(sortedAdj, adj, V, bound, 0, 1, path, visited, shouldReturn, best)
+  _solveHSPBnB(sortedAdj, adj, V, bound, 0, 1, path, visited, shouldReturn, best)
   return best.path
 }
 
-export function planCoverRoute<T>(covers: Cover<T>[], startPos?: Pos): Cover<T>[] {
+export function solveHSPOpt2(adj: number[][], source = 0, shouldReturn = false) {
+  const V = adj.length
+  let path = [...Array(V).keys()]
+    .map((v) => [v, Math.random()])
+    .sort((a, b) => a[1] - b[1])
+    .map((a) => a[0])
+  const t = path.indexOf(source)
+  path[t] = path[0]
+  path[0] = source
+
+  let swapped = true
+  while (swapped) {
+    swapped = false
+    for (let i = 0; i <= V - 2; ++i) {
+      for (let j = i + 1; j <= V - 1; ++j) {
+        if (
+          adj[path[i]][path[j]] +
+            (j + 1 < V || shouldReturn ? adj[path[(i + 1) % V]][path[(j + 1) % V]] : 0) <
+          adj[path[i]][path[(i + 1) % V]] +
+            (j + 1 < V || shouldReturn ? adj[path[j]][path[(j + 1) % V]] : 0)
+        ) {
+          path = [
+            ...path.slice(0, i + 1),
+            ...path.slice(i + 1, j + 1).reverse(),
+            ...path.slice(j + 1, V),
+          ]
+          swapped = true
+        }
+      }
+    }
+  }
+  return path
+}
+
+function center2centerEqulaidan(p: Qube, q: Qube) {
+  return Math.sqrt(
+    Math.pow(p[0] + p[3] * 0.5 - q[0] - q[3] * 0.5, 2) +
+      Math.pow(p[1] + p[4] * 0.5 - q[1] - q[4] * 0.5, 2) +
+      Math.pow(p[2] + p[5] * 0.5 - q[2] - q[5] * 0.5, 2)
+  )
+}
+
+export function planCoverRoute<T>(
+  covers: Cover<T>[],
+  startPos?: Pos,
+  maxNeighbors = 0,
+  distanceFn: (_p: Qube, _q: Qube) => number = center2centerEqulaidan
+): Cover<T>[] {
   const V = covers.length
   const adjMat: number[][] = []
   for (let i = 0; i < V; ++i) {
@@ -219,16 +282,20 @@ export function planCoverRoute<T>(covers: Cover<T>[], startPos?: Pos): Cover<T>[
     const p = covers[i].qube
     for (let j = 0; j < V; ++j) {
       const q = covers[j].qube
-      adjMat[i][j] = Math.sqrt(
-        Math.pow(p[0] + p[3] * 0.5 - q[0] - q[3] * 0.5, 2) +
-          Math.pow(p[1] + p[4] * 0.5 - q[1] - q[4] * 0.5, 2) +
-          Math.pow(p[2] + p[5] * 0.5 - q[2] - q[5] * 0.5, 2)
-      )
+      adjMat[i][j] = distanceFn(p, q)
     }
   }
-  for (let i = 0; i < V; ++i) {
-    adjMat[i][i] = Infinity
+
+  for (let i = 0; i < V; ++i) adjMat[i][i] = Infinity
+
+  if (maxNeighbors) {
+    for (let i = 0; i < V; ++i) {
+      const indices = [...new Array(V).keys()]
+      indices.sort((j, k) => (adjMat[i][j] < adjMat[i][k] ? -1 : 1))
+      indices.slice(maxNeighbors).forEach((j) => (adjMat[i][j] = Infinity))
+    }
   }
+
   let minDist = Infinity,
     startCoverIndex = 0
   if (startPos) {
@@ -246,6 +313,10 @@ export function planCoverRoute<T>(covers: Cover<T>[], startPos?: Pos): Cover<T>[
       }
     }
   }
-  const route = solveHSP(adjMat, startCoverIndex)
+
+  const route =
+    covers.length < 100
+      ? solveHSPBnB(adjMat, startCoverIndex)
+      : solveHSPOpt2(adjMat, startCoverIndex)
   return route.map((i) => covers[i])
 }

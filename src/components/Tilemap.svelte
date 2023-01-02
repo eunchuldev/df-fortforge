@@ -429,12 +429,6 @@
 
   function escape() {
     let escaping = false
-    console.log(
-      action.level1,
-      Action.Select,
-      selection.length,
-      action.drawRectStage === DrawRectStage.Drawing
-    )
     if (movingSelectionState.isMoving) {
       stopMoveSelection()
       escaping = true
@@ -1370,6 +1364,9 @@
             <Icon icon={SaveAsIcon} inline={true} />
             <span class="ml-1"> {snakeCase(fortName)}.mak </span>
           </a>
+          <span class="text-xs">
+            {dfMacroText.split('\n').length}lines
+          </span>
         </li>
         <li>
           Place the macro file on the Dwarf fortress macros directory.

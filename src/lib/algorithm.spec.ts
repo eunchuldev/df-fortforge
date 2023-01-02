@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import { Tilemap } from './tilemap.js'
-import { decomposeIntoQubes, solveHSP } from './algorithm.js'
+import { decomposeIntoQubes, solveHSPBnB, solveHSPOpt2 } from './algorithm.js'
 import type { Pos } from './geometry'
 
 test('decomposeIntoQubes(tilemap)', () => {
@@ -58,29 +58,41 @@ test('decomposeIntoQubes(tilemap, preferVerticalQube)', () => {
     preferVerticalQube: true,
   })
 
-  expect(res).toStrictEqual([
-    {
-      qube: [3, 3, 4, 1, 0, 0],
-      tile: 1,
-    },
-    {
-      qube: [3, 4, 4, 0, 0, 0],
-      tile: 1,
-    },
-    {
-      qube: [4, 4, 4, 0, 0, 1],
-      tile: 1,
-    },
-  ])
+  expect(res).toContainEqual({
+    qube: [4, 4, 4, 0, 0, 1],
+    tile: 1,
+  })
 })
 
-test('solveHSP', () => {
+test('solveHSPBnB', () => {
   const adjMat = [
-    [0, 9, 0],
-    [2, 0, 9],
-    [9, 1, 0],
+    [Infinity, 9, 0],
+    [2, Infinity, 9],
+    [9, 1, Infinity],
   ]
-  const res = solveHSP(adjMat, 2)
+  const res = solveHSPBnB(adjMat, 2)
+
+  expect(res).toStrictEqual([2, 1, 0])
+})
+
+test('solveHSPOpt2', () => {
+  const adjMat = [
+    [Infinity, 9, 0],
+    [2, Infinity, 9],
+    [9, 1, Infinity],
+  ]
+  const res = solveHSPOpt2(adjMat, 2)
+
+  expect(res).toStrictEqual([2, 1, 0])
+})
+
+test('solveHSPOpt2', () => {
+  const adjMat = [
+    [Infinity, 9, 100],
+    [2, Infinity, 9],
+    [9, 1, Infinity],
+  ]
+  const res = solveHSPOpt2(adjMat, 2)
 
   expect(res).toStrictEqual([2, 1, 0])
 })

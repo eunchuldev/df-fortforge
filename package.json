@@ -1,7 +1,7 @@
 {
   "name": "df-fortforge",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.1-1",
   "supportDFVersion": "50.04",
   "type": "module",
   "scripts": {

@@ -6,23 +6,19 @@ Losing itself is not a problem. The problem is that I believe there is an ideal 
 
 Dwarf fortress Built-in Macro is useful to repeat small task, but not really helpful to build entire fortress. I've heard about DFHack and QuickFort, but they are not working with steam version at this moment. So I decide to made my own construction tool.
 
-
 # ScreenShot
 
 ![screenshot](assets/screenshot.gif)
 
-
 # Playground
 
 [playground](https://eunchuldev.github.io/df-fortforge/)
-
 
 # Who can use DF FortForge
 
 - Who tends to prepare and design the fort longer than actual playing
 - Who wants to separate the design and building process
 - Who wants to design a fortress as if manipulating an image: select, copy, paste, rotate, and flip the part.
-
 
 # What is the limitation of DF FortForge
 
