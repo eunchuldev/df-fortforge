@@ -10,7 +10,6 @@ const pkg = JSON.parse(json)
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: "/df-fortforge",
   plugins: [svelte()],
   define: {
     __VERSION__: JSON.stringify(pkg.version),
