@@ -491,7 +491,7 @@
           ],
           tileSet: {},
           tileCount: 0,
-          color: colorScheme[labels.length],
+          color: colorScheme[labels.length % colorScheme.length],
           hotkey: '',
           id: v4(),
         }
@@ -1272,19 +1272,6 @@
         stroke-dasharray="4"
       />
     {/if}
-    <!--
-      <rect
-        x={(label.tile[0]- screenQube[0]) *
-          tileWidth}
-        y={(Math.min(action.drawRect[1], action.drawRect[1] + action.drawRect[4]) - screenQube[1]) *
-          tileWidth}
-        width={(Math.abs(action.drawRect[3]) + 1) * tileWidth}
-        height={(Math.abs(action.drawRect[4]) + 1) * tileWidth}
-        fill="rgb(255, 255, 255)"
-        fill-opacity="0.1"
-        stroke="rgb(255, 255, 255)"
-      />
--->
 
     {#if action.level1 === Action.Select}
       {#if screenQube[2] >= selectionBoundary[0][2] && screenQube[2] <= selectionBoundary[1][2]}
@@ -1356,37 +1343,37 @@
 </div>
 
 {#if focusLabel}
-  <!--
-  <div 
-    class="h-4 ml-6"
+  <div
+    class="-mt-10"
     style="position: absolute; 
-      left: {(focusLabel.boundary[1][0] - screenQube[0]) * tileWidth}px; 
+      left: {(focusLabel.boundary[0][0] - screenQube[0]) * tileWidth}px; 
       top:{(focusLabel.boundary[0][1] - screenQube[1]) * tileWidth}px"
   >
-    <div title="no hotkey">
-      <input 
-        id="label-hotkey-input-empty"
-        type="radio"
-        name="label-hotkey"
-        value=''
-        bind:group={focusLabel.hotkey}
-      />
-      <label class="text-white" for="label-hotkey-input-empty"> No Hotkey </label>
+    <div title="label color" class="flex">
+      {#each colorScheme as color, i (color)}
+        <div class="relative">
+          <input
+            id="label-colorscheme-{i}"
+            class="hidden peer"
+            type="radio"
+            name="label-colorscheme"
+            value={color}
+            bind:group={focusLabel.color}
+            on:change={() => (labels = labels)}
+          />
+          <label
+            class="peer-checked:border-2 border-white w-4 h-4 inline-block"
+            style="background-color: {color}"
+            for="label-colorscheme-{i}"
+          />
+          {#if color === focusLabel.color}
+            <div class="absolute bottom-5 left-1 text-center text-white">↓</div>
+          {/if}
+        </div>
+      {/each}
     </div>
-    {#each [...Array(11).keys()].map(i => `F${i+1}`) as hotkey}
-      <div title="set hotkey {hotkey} of this label">
-        <input 
-          id="label-hotkey-input-{hotkey}"
-          type="radio"
-          name="label-hotkey"
-          value={hotkey}
-          bind:group={focusLabel.hotkey}
-        />
-        <label class="text-white" for="label-hotkey-input-{hotkey}"> {hotkey} </label>
-      </div>
-    {/each}
   </div>
-  -->
+
   <div
     class="-mt-5 -ml-8"
     style="position: absolute; 
