@@ -7,11 +7,11 @@ export function clickOutside<Fn extends () => void>(node: HTMLElement, onEventFu
     }
   }
 
-  document.addEventListener('click', handleClick)
+  document.addEventListener('mousedown', handleClick)
 
   return {
     destroy() {
-      document.removeEventListener('click', handleClick)
+      document.removeEventListener('mousedown', handleClick)
     },
   }
 }
