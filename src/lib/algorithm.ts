@@ -72,8 +72,8 @@ export function decomposeIntoQubes<T>({
         done.add(encodePos(pos))
         cover = { tile, qube: [...pos, 0, 0, 0] }
 
-        let expanding = false
-        do {
+        let expanding = true
+        while (expanding) {
           expanding = false
           const dimensionOrder = preferVerticalQube ? [2, 0, 1] : [0, 1, 2]
           if (preferVerticalQube) {
@@ -121,7 +121,6 @@ export function decomposeIntoQubes<T>({
                 }
               }
               if (expandable) {
-                expanding = true
                 for (
                   let j = cover.qube[(n + 1) % 3];
                   j <= cover.qube[(n + 1) % 3] + cover.qube[((n + 1) % 3) + 3] && expandable;
@@ -139,14 +138,17 @@ export function decomposeIntoQubes<T>({
                     done.add(encodePos(pos))
                   }
                 }
+                if (i < cover.qube[n] || i - cover.qube[n] > cover.qube[n + 3]) {
+                  expanding = true
+                }
                 cover.qube[n] = Math.min(i, cover.qube[n])
-                cover.qube[n + 3] = Math.max(i - cover.qube[n], cover.qube[n + 3] + 1)
+                cover.qube[n + 3] = Math.max(i - cover.qube[n], cover.qube[n + 3])
               }
             }
             if (expanding && preferVerticalQube && n === dimensionOrder[0]) break
             else if (expanding && preferWideQube && n === dimensionOrder[1]) break
           }
-        } while (expanding)
+        }
         covers.push(cover)
         cover = null
       }

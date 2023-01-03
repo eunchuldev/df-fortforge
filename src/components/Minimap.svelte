@@ -3,17 +3,19 @@
 
   import type { Tile, Tilemap } from '../lib/tilemap.js'
   import type { Pos, Qube, Rect } from '../lib/geometry'
+  import { canvasResize } from '../lib/svelte-actions/canvas-resize.js'
 
   export let tilemap: Tilemap
   export let cursor: Pos
   export let screenQube: Qube
+  export let floorLabels: Record<number, string> = []
 
   let canvas: HTMLCanvasElement
 
   const visibleFloors = 7
 
   function transformIsometric(ctx: CanvasRenderingContext2D) {
-    const T: [number, number, number, number, number, number] = [0.63, 0, 0.75, 0.2, 0, 0]
+    const T: [number, number, number, number, number, number] = [0.63, 0, 0.35, 0.2, 0, 0]
     ctx.transform(...T)
   }
 
@@ -27,10 +29,20 @@
     ctx.restore()
     ctx.save()
     ctx.globalAlpha = cursor[2] === depth ? 1.0 : 0.5
-    ctx.fillText(
-      `${-depth} F`,
+    ctx.font = ctx.font.replace(/\d+px/, '22px')
+    /*drawTextOutlined(
+      ctx, 
+      `${-depth} F` + (floorLabels[-depth] ? ` (${floorLabels[-depth]})` : ''),
       3,
-      0.5 * canvas.height + ((depth - cursor[2]) / visibleFloors) * canvas.height - 3
+      0.5 * canvas.height + ((depth - cursor[2]) / visibleFloors) * canvas.height - 5,
+      'white',
+      'black',
+      0.8,
+    )*/
+    ctx.fillText(
+      `${-depth} F` + (floorLabels[-depth] ? ` (${floorLabels[-depth]})` : ''),
+      3,
+      0.5 * canvas.height + ((depth - cursor[2]) / visibleFloors) * canvas.height - 5
     )
     ctx.restore()
   }
@@ -100,6 +112,8 @@
     const ctx = canvas.getContext('2d')
     let frame = requestAnimationFrame(loop)
 
+    ctx.font = ctx.font.replace(/\d+px/, '30px')
+
     function loop() {
       frame = requestAnimationFrame(loop)
       ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -139,4 +153,4 @@
   })
 </script>
 
-<canvas bind:this={canvas} style="width: 100%; height: 100%;" />
+<canvas bind:this={canvas} style="width: 100%; height: 100%;" use:canvasResize />

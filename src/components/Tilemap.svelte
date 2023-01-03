@@ -1,14 +1,16 @@
 <script lang="ts">
   import { Tile, Tilemap, tileToString } from '../lib/tilemap.js'
   import { hotkey } from '../lib/svelte-actions/hotkey.js'
+  import { v4 } from 'uuid'
   import Modal from './Modal.svelte'
   import Dropdown from './Dropdown.svelte'
   import Minimap from './Minimap.svelte'
   import { snakeCase } from 'change-case'
   import { CommandManager } from '../lib/command.js'
-  import { version, supportDFVersion } from '../lib/constants.js'
+  import { version, supportDFVersion, build } from '../lib/constants.js'
   import Icon from '@iconify/svelte/dist/OfflineIcon.svelte'
   import FortIcon from '@iconify-icons/fa-brands/fort-awesome-alt'
+  import { randomColors } from '../lib/random-colors.js'
   //import FortIcon from '@iconify-icons/mdi/castle';
   import SaveAsIcon from '@iconify-icons/mdi/download'
   import UploadIcon from '@iconify-icons/mdi/upload'
@@ -37,11 +39,17 @@
   import RedoIcon from '@iconify-icons/mdi/redo'
   import GithubIcon from '@iconify-icons/mdi/github'
   import AboutIcon from '@iconify-icons/mdi/information'
+  import LabelIcon from '@iconify-icons/mdi/label'
+  import DeleteIcon from '@iconify-icons/mdi/delete-outline'
+  import DeleteForeverIcon from '@iconify-icons/mdi/delete-forever-outline'
+  import CloseIcon from '@iconify-icons/mdi/close'
 
   import { genFortressName } from '../lib/df-name-gen.js'
   import { genMacro } from '../lib/df-macros.js'
 
   import type { Pos, Qube, Area, Volume } from '../lib/geometry'
+  import { encodePos, qubeIter } from '../lib/geometry.js'
+  import { deepCopy } from '../lib/deep-copy.js'
 
   enum Action {
     DesignateMine,
@@ -51,6 +59,14 @@
     DesignateRamp,
     DesignateChannel,
     DesignateStairs,
+
+    Label,
+    EraseLabelArea,
+    PickLabelOfHotkey,
+
+    GFMacro,
+    PickGFMacroStartPoint,
+    SaveGFMacro,
 
     Select,
   }
@@ -67,7 +83,7 @@
     None,
     GenDFMacro,
     ResizeTilemap,
-    ShowAllHotkeys,
+    ShowUsefulHotkeys,
     DownloadFort,
     About,
   }
@@ -79,7 +95,7 @@
     drawRectStage: DrawRectStage
   }
 
-  const ALLOWED_DRAW_MODES = {
+  const ALLOWED_DRAW_MODES: Partial<Record<Action, DrawMode[]>> = {
     [Action.DesignateDig]: [DrawMode.Rectangle, DrawMode.Free],
     [Action.DesignateRamp]: [DrawMode.Rectangle, DrawMode.Free],
     [Action.DesignateChannel]: [DrawMode.Rectangle, DrawMode.Free],
@@ -87,13 +103,35 @@
     [Action.DesignateStairs]: [DrawMode.Rectangle],
     [Action.DesignateMine]: [DrawMode.Rectangle, DrawMode.Free],
     [Action.Select]: [DrawMode.Rectangle, DrawMode.Free],
+    [Action.Label]: [DrawMode.Rectangle, DrawMode.Free],
+    [Action.EraseLabelArea]: [DrawMode.Rectangle, DrawMode.Free],
   }
-  const ACTION_PARENT = {
+  const ACTION_PARENT: Partial<Record<Action, Action>> = {
     [Action.DesignateDig]: Action.DesignateMine,
     [Action.DesignateRamp]: Action.DesignateMine,
     [Action.DesignateChannel]: Action.DesignateMine,
     [Action.DesignateStairs]: Action.DesignateMine,
+    [Action.Label]: Action.Label,
+    [Action.EraseLabelArea]: Action.Label,
+    [Action.PickLabelOfHotkey]: Action.Label,
+    [Action.PickGFMacroStartPoint]: Action.GFMacro,
+    [Action.SaveGFMacro]: Action.GFMacro,
   }
+
+  const LABEL_HOTKEY_LIST = [
+    'F1',
+    'F2',
+    'F3',
+    'F4',
+    'F5',
+    'F6',
+    'F7',
+    'F8',
+    'F9',
+    'F10',
+    'F11',
+    'F12',
+  ]
 
   export let tileWidth = 32
 
@@ -124,22 +162,46 @@
 
   /*  let drawMode: 'Brush' | 'Qube' = 'Qube'; */
   let cursor: Pos = [Math.floor(tilemapVolume[0] * 0.5), Math.floor(tilemapVolume[1] * 0.5), 0]
-  let screenQube: Qube = [0, 0, 0, 0, 0, 0]
+  let screenQube: Qube = [0, 0, 0, 100, 100, 0]
   let containerPixelArea: Area = [0, 0]
   let lastSavedAt: Date
   let dfMacroText = ''
   let openedModal: Modals = Modals.None
+  let shiftKey = false
+  let ctrlKey = false
+  let altKey = false
   $: screenQube[3] = Math.ceil(containerPixelArea[0] / tileWidth)
   $: screenQube[4] = Math.ceil(containerPixelArea[1] / tileWidth)
 
-  $: if (tilemap && fortName) saveLastState()
+  const colorScheme = randomColors({ count: 10, seed: 0 })
+
+  interface Label {
+    id: string
+    name: string
+    tileSet: Record<string, Pos>
+    tileCount: number
+    boundary: [Pos, Pos]
+    hotkey: string
+    color: string
+  }
+  let labels: Label[] = []
+  let labelHotkeys: Record<typeof LABEL_HOTKEY_LIST[number], Label | null> = Object.fromEntries(
+    LABEL_HOTKEY_LIST.map((key) => [key, null])
+  )
+  let focusLabel: Label | null = null
+
+  let setWaitingHotkey = ''
+
+  $: if (tilemap && fortName && labels) saveLastState()
 
   interface State {
     tilemap: string
+    labels: Label[]
     fortName: string
     cursor: Pos
     screenQube: Qube
     savedAt: string
+    tileWidth: number
   }
 
   loadLastState()
@@ -151,6 +213,11 @@
     screenQube = state.screenQube ?? screenQube
     lastSavedAt = state.savedAt ? new Date(state.savedAt) : new Date()
     tilemap = tilemap
+    tileWidth = state.tileWidth ?? tileWidth
+    labels = state.labels ?? []
+    labelHotkeys = Object.fromEntries(
+      LABEL_HOTKEY_LIST.map((key) => [key, labels.find((label) => label.hotkey === key)])
+    )
   }
 
   function getState(): State {
@@ -160,6 +227,8 @@
       cursor,
       screenQube,
       savedAt: new Date().toISOString(),
+      labels,
+      tileWidth,
     }
   }
 
@@ -213,12 +282,14 @@
     return pos
   }
   function cursorAt(x: number, y: number, z: number) {
-    cursor[0] = x
-    cursor[1] = y
-    cursor[2] = z
-    clampPos(cursor)
-    updateScreenQube()
-    updateDrawRect()
+    if (x !== cursor[0] || y !== cursor[1] || z !== cursor[2]) {
+      cursor[0] = x
+      cursor[1] = y
+      cursor[2] = z
+      clampPos(cursor)
+      updateScreenQube()
+      updateDrawRect()
+    }
   }
   function cursorBy(x: number, y: number, z: number) {
     cursor[0] += x
@@ -314,6 +385,154 @@
     tilemap = tilemap
   }
 
+  function setLabelHotkey(hotkey: string, label: Label) {
+    if (labelHotkeys[hotkey]) labelHotkeys[hotkey].hotkey = ''
+    labelHotkeys[hotkey] = label
+    if (label.hotkey && label.hotkey !== hotkey) {
+      labelHotkeys[label.hotkey] = null
+    }
+    label.hotkey = hotkey
+    labels = labels
+  }
+  function removeLabelHotkey(hotkey: string) {
+    if (labelHotkeys[hotkey]) labelHotkeys[hotkey].hotkey = ''
+    labelHotkeys[hotkey] = null
+    labels = labels
+  }
+  function followLabel(label: Label) {
+    const center = [...Array(3).keys()]
+      .map((i) => 0.5 * (label.boundary[0][i] + label.boundary[1][i]))
+      .map(Math.floor)
+    for (let i = 0; i < 3; ++i) {
+      cursor[i] = center[i]
+    }
+    screenQube[2] = cursor[2]
+    for (let i = 0; i < 2; ++i) {
+      screenQube[i] = Math.floor(cursor[i] - screenQube[i + 3] * 0.5)
+    }
+  }
+
+  function removeLabel(id: string) {
+    let index = labels.findIndex((label) => label.id === id)
+    if (index >= 0) {
+      if (labels[index].hotkey) labelHotkeys[labels[index].hotkey] = null
+      labels.splice(index, 1)
+    }
+    labels = labels
+  }
+  function eraseLabelArea(qube: Qube) {
+    let originalLabels: Record<string, Label> = {}
+    let changedLabels: Record<string, Label> = {}
+    let removedLabels: string[] = []
+    for (let pos of qubeIter(qube)) {
+      for (let label of labels) {
+        if (label.tileSet[encodePos(pos)]) {
+          if (!changedLabels[label.id]) {
+            changedLabels[label.id] = deepCopy(label)
+            originalLabels[label.id] = deepCopy(label)
+          }
+          changedLabels[label.id].tileSet[encodePos(pos)] = undefined
+          delete changedLabels[label.id].tileSet[encodePos(pos)]
+          changedLabels[label.id].tileCount -= 1
+          if (changedLabels[label.id].tileCount === 0) removedLabels.push(label.id)
+        }
+      }
+    }
+
+    for (const label of Object.values(changedLabels)) {
+      label.boundary = [
+        [Infinity, Infinity, Infinity],
+        [0, 0, 0],
+      ]
+      Object.values(label.tileSet).forEach((pos) => {
+        for (let i = 0; i < 3; ++i) {
+          label.boundary[0][i] = Math.min(pos[i], label.boundary[0][i])
+          label.boundary[1][i] = Math.max(pos[i], label.boundary[1][i])
+        }
+      })
+    }
+
+    commandManager.execute({
+      forward: () => {
+        for (let newLabel of Object.values(changedLabels)) {
+          Object.assign(
+            labels.find((label) => label.id === newLabel.id),
+            newLabel
+          )
+        }
+        for (let id of removedLabels) {
+          let index = labels.findIndex((label) => label.id === id)
+          if (index >= 0) {
+            labels.splice(index, 1)
+          }
+        }
+        labels = labels
+      },
+      backward: () => {
+        for (let newLabel of Object.values(originalLabels)) {
+          let oldLabel = labels.find((label) => label.id === newLabel.id)
+          if (oldLabel) Object.assign(oldLabel, newLabel)
+          else labels.push(deepCopy(newLabel))
+        }
+        labels = labels
+      },
+    })
+  }
+  function addLabel(qube: Qube) {
+    let lastLabel = shiftKey ? focusLabel : null
+    let lastLabelClone = lastLabel ? deepCopy(focusLabel) : null
+    let newLabel: Label = lastLabel
+      ? deepCopy(lastLabel)
+      : {
+          name: 'Unnamed Label',
+          boundary: [
+            [qube[0], qube[1], qube[2]],
+            [qube[0] + qube[3], qube[1] + qube[4], qube[2] + qube[5]],
+          ],
+          tileSet: {},
+          tileCount: 0,
+          color: colorScheme[labels.length],
+          hotkey: '',
+          id: v4(),
+        }
+
+    for (let pos of qubeIter(qube)) {
+      if (!newLabel.tileSet[encodePos(pos)]) {
+        newLabel.tileSet[encodePos(pos)] = pos
+        newLabel.tileCount += 1
+        for (let i = 0; i < 3; ++i) {
+          newLabel.boundary[0][i] = Math.min(pos[i], newLabel.boundary[0][i])
+          newLabel.boundary[1][i] = Math.max(pos[i], newLabel.boundary[1][i])
+        }
+      }
+    }
+
+    commandManager.execute({
+      forward: () => {
+        if (!lastLabel) {
+          labels.push(newLabel)
+        } else {
+          Object.assign(lastLabel, newLabel)
+        }
+        labels = labels
+      },
+      backward: () => {
+        if (lastLabel)
+          Object.assign(
+            labels.find((label) => label.id === newLabel.id),
+            lastLabelClone
+          )
+        else
+          labels.splice(
+            labels.findIndex((label) => label.id === newLabel.id),
+            1
+          )
+        labels = labels
+      },
+    })
+    focusLabel = lastLabel
+  }
+
   function executeAction(action: Action, qube: Qube): boolean {
     let executing = true
     switch (action) {
@@ -377,6 +596,12 @@
       case Action.Select:
         select(qube)
         break
+      case Action.Label:
+        addLabel(qube)
+        break
+      case Action.EraseLabelArea:
+        eraseLabelArea(qube)
+        break
       default:
         executing = false
         break
@@ -387,10 +612,15 @@
 
   function execute(): boolean {
     let executing = false
-    if (macroStage === GenDFMacroStage.PickStartPoint) {
+    if (action.level2 === Action.PickGFMacroStartPoint) {
       genDFMacro([...cursor])
       executing = true
+    } else if (action.level2 === Action.PickLabelOfHotkey) {
+      let label = labels.find((label) => label.tileSet[encodePos(cursor)])
+      if (label) setLabelHotkey(setWaitingHotkey, label)
+      action.level2 = null
     } else if (
+      !shiftKey &&
       action.level1 === Action.Select &&
       action.drawRectStage !== DrawRectStage.Drawing &&
       selection.find((s) => s[0] === cursor[0] && s[1] === cursor[1] && s[2] === cursor[2]) &&
@@ -399,11 +629,20 @@
       startMoveSelection()
       executing = true
     } else if (
+      !shiftKey &&
+      action.level1 === Action.Label &&
+      action.level2 !== Action.EraseLabelArea &&
+      action.drawRectStage !== DrawRectStage.Drawing &&
+      labels.find((label) => label.tileSet[encodePos(cursor)])
+    ) {
+      focusLabel = labels.find((label) => label.tileSet[encodePos(cursor)])
+    } else if (
       action.drawMode === DrawMode.Rectangle &&
       ALLOWED_DRAW_MODES[action.level2 ?? action.level1]?.includes(DrawMode.Rectangle)
     ) {
       if (action.drawRectStage === DrawRectStage.StandBy) {
-        if (action.level1 === Action.Select && selection.length > 0) clearSelection()
+        if (action.level1 === Action.Select && selection.length > 0 && !shiftKey) clearSelection()
+        else if (action.level1 === Action.Label && !shiftKey) focusLabel = null
         action.drawRectStage = DrawRectStage.Drawing
         action.drawRect = [...cursor, 0, 0, 0]
         executing = true
@@ -433,19 +672,25 @@
       stopMoveSelection()
       escaping = true
     }
-    if (macroStage === GenDFMacroStage.PickStartPoint) {
-      macroStage = null
+    if (action.level2 === Action.PickGFMacroStartPoint) {
+      action.level2 = null
+      action.level1 = null
       escaping = true
     }
     if (action.drawRectStage === DrawRectStage.Drawing) {
       action.drawRectStage = DrawRectStage.StandBy
       escaping = true
-    } else if (action.level1 === Action.Select && selection.length) {
+    } else if (action.level1 === Action.Select && selection.length && !shiftKey) {
       clearSelection()
       escaping = true
-    } else if (action.level1 !== null || action.level2 !== null) {
-      action.level1 = null
+    } else if (focusLabel) {
+      focusLabel = null
+      escaping = true
+    } else if (action.level2 !== null) {
       action.level2 = null
+      escaping = true
+    } else if (action.level1 !== null) {
+      action.level1 = null
       escaping = true
     }
     return escaping
@@ -453,9 +698,19 @@
 
   function zoomIn() {
     if (tileWidth < 128) tileWidth += 12
+    const screenCenter = [screenQube[0] + screenQube[3] * 0.5, screenQube[1] + screenQube[4] * 0.5]
+    screenQube[3] = Math.ceil(containerPixelArea[0] / tileWidth)
+    screenQube[4] = Math.ceil(containerPixelArea[1] / tileWidth)
+    screenQube[0] = Math.floor(screenCenter[0] - screenQube[3] * 0.5)
+    screenQube[1] = Math.floor(screenCenter[1] - screenQube[4] * 0.5)
   }
   function zoomOut() {
-    if (tileWidth > 20) tileWidth -= 12
+    if (tileWidth >= 20) tileWidth -= 12
+    const screenCenter = [screenQube[0] + screenQube[3] * 0.5, screenQube[1] + screenQube[4] * 0.5]
+    screenQube[3] = Math.ceil(containerPixelArea[0] / tileWidth)
+    screenQube[4] = Math.ceil(containerPixelArea[1] / tileWidth)
+    screenQube[0] = Math.ceil(screenCenter[0] - screenQube[3] * 0.5)
+    screenQube[1] = Math.ceil(screenCenter[1] - screenQube[4] * 0.5)
   }
 
   let selection: Pos[] = []
@@ -478,12 +733,11 @@
     }
   }
   function select(qube: Qube) {
-    if (qube[3] === 0 && qube[4] === 0 && qube[5] === 0)
-      return selectPos([qube[0], qube[1], qube[2]])
-    clearSelection()
-    for (let i = 0; i <= qube[3]; ++i)
-      for (let j = 0; j <= qube[4]; ++j)
-        for (let k = 0; k <= qube[5]; ++k) selectPos([qube[0] + i, qube[1] + j, qube[2] + k])
+    if (!shiftKey) clearSelection()
+    for (let pos of qubeIter(qube)) {
+      selectPos(pos)
+    }
+    selection = selection
   }
   let clipboard: { pos: Pos; tile: Tile }[] = []
   let clipboardPivot: Pos = [0, 0, 0]
@@ -620,8 +874,19 @@
     tilemap = tilemap
   }
 
+  function onKeyUp(e: KeyboardEvent) {
+    if (e.key === 'Shift') {
+      shiftKey = false
+    } else if (e.key === 'Control') ctrlKey = false
+    else if (e.key === 'Alt') altKey = false
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     const cursorStep = e.shiftKey ? 10 : 1
+    const panStep = e.altKey ? 1 : e.shiftKey ? 20 : 10
+    shiftKey = e.shiftKey
+    ctrlKey = e.ctrlKey
+    altKey = e.altKey
     if (e.ctrlKey) return
     switch (e.key) {
       case 'ArrowLeft':
@@ -645,16 +910,16 @@
         cursorBy(0, 0, cursorStep)
         break
       case 'w':
-        panBy([0, -10, 0])
+        panBy([0, -panStep, 0])
         break
       case 'd':
-        panBy([10, 0, 0])
+        panBy([panStep, 0, 0])
         break
       case 's':
-        panBy([0, 10, 0])
+        panBy([0, panStep, 0])
         break
       case 'a':
-        panBy([-10, 0, 0])
+        panBy([-panStep, 0, 0])
         break
       case 'Enter':
         execute()
@@ -669,21 +934,25 @@
         zoomIn()
         break
       default:
-        break
+        return
     }
+    e.preventDefault()
   }
 
-  enum GenDFMacroStage {
+  /*enum GenDFMacroStage {
     PickStartPoint,
     SaveMacro,
-  }
-  let macroStage: GenDFMacroStage | null = null
+  }*/
+  //let macroStage: GenDFMacroStage | null = null
 
   function pickDFMacroStartPoint() {
-    macroStage = GenDFMacroStage.PickStartPoint
+    action.level2 = Action.PickGFMacroStartPoint
+    action.level1 = Action.GFMacro
+    //macroStage = GenDFMacroStage.PickStartPoint
   }
   function genDFMacro(startPoint: Pos) {
-    macroStage = GenDFMacroStage.SaveMacro
+    action.level1 = Action.GFMacro
+    action.level2 = Action.SaveGFMacro
     dfMacroText = genMacro(snakeCase(fortName), tilemap, startPoint)
     openedModal = Modals.GenDFMacro
   }
@@ -704,16 +973,23 @@
     }
     reader.readAsText((<HTMLInputElement>e.target).files[0])
   }
+
+  function blurOnEnterOrEscape(e: KeyboardEvent) {
+    if (['Enter', 'Escape'].includes(e.key)) {
+      ;(e.target as HTMLInputElement).blur()
+      return false
+    }
+  }
 </script>
 
-<svelte:window on:keydown={onKeyDown} />
+<svelte:window on:keydown={onKeyDown} on:keyup={onKeyUp} />
 
 <svelte:head>
   <title>{fortName} - DF Fort Forge</title>
 </svelte:head>
 
 <div
-  class="overflow-hidden w-full h-full"
+  class="overflow-hidden w-full h-full relative"
   bind:clientWidth={containerPixelArea[0]}
   bind:offsetHeight={containerPixelArea[1]}
 >
@@ -726,6 +1002,30 @@
     on:wheel={onWheel}
   >
     <defs>
+      <pattern id="hatch-diagonal" patternUnits="userSpaceOnUse" width="4" height="4">
+        <path
+          d="M-1,1 l2,-2
+                 M0,4 l4,-4
+                 M3,5 l2,-2"
+          stroke-width="1"
+          fill="none"
+          stroke="white"
+        />
+      </pattern>
+      <pattern id="hatch-diagonal-loose" patternUnits="userSpaceOnUse" width="8" height="8">
+        <path
+          d="M-1,1 l2,-2
+                 M0,8 l8,-8
+                 M7,9 l4,-4"
+          stroke-width="1"
+          fill="none"
+          stroke="white"
+        />
+      </pattern>
+
+      <mask id="hatch-diagonal-mask" x="0" y="0" width="1" height="1">
+        <rect x="0" y="0" width="100%" height="100%" fill="url(#hatch-diagonal-loose)" />
+      </mask>
       <pattern
         id={tileToString(Tile.OpenSpace)}
         width={tileWidth}
@@ -940,6 +1240,52 @@
       />
     {/if}
 
+    {#each labels.filter(({ boundary }) => boundary[0][2] <= screenQube[2] && boundary[1][2] >= screenQube[2]) as label}
+      <text
+        x={(label.boundary[0][0] - screenQube[0]) * tileWidth}
+        y={(label.boundary[0][1] - screenQube[1]) * tileWidth - 2}
+        fill={label.color}
+        fill-opacity={label === focusLabel ? 0.8 : 0.4}
+      >
+        {label.name}
+      </text>
+      {#each Object.values(label.tileSet).filter((tile) => tile[2] === screenQube[2]) as tile}
+        <rect
+          x={(tile[0] - screenQube[0]) * tileWidth}
+          y={(tile[1] - screenQube[1]) * tileWidth}
+          width={tileWidth}
+          height={tileWidth}
+          fill={label.color}
+          fill-opacity={label === focusLabel ? 0.8 : 0.4}
+          mask="url(#hatch-diagonal-mask)"
+        />
+      {/each}
+    {/each}
+    {#if focusLabel}
+      <rect
+        x={(focusLabel.boundary[0][0] - screenQube[0]) * tileWidth}
+        y={(focusLabel.boundary[0][1] - screenQube[1]) * tileWidth}
+        width={(focusLabel.boundary[1][0] - focusLabel.boundary[0][0] + 1) * tileWidth}
+        height={(focusLabel.boundary[1][1] - focusLabel.boundary[0][1] + 1) * tileWidth}
+        fill="none"
+        stroke={focusLabel.color}
+        stroke-dasharray="4"
+      />
+    {/if}
+    <!--
+      <rect
+        x={(label.tile[0]- screenQube[0]) *
+          tileWidth}
+        y={(Math.min(action.drawRect[1], action.drawRect[1] + action.drawRect[4]) - screenQube[1]) *
+          tileWidth}
+        width={(Math.abs(action.drawRect[3]) + 1) * tileWidth}
+        height={(Math.abs(action.drawRect[4]) + 1) * tileWidth}
+        fill="rgb(255, 255, 255)"
+        fill-opacity="0.1"
+        stroke="rgb(255, 255, 255)"
+      />
+-->
+
     {#if action.level1 === Action.Select}
       {#if screenQube[2] >= selectionBoundary[0][2] && screenQube[2] <= selectionBoundary[1][2]}
         <rect
@@ -987,8 +1333,7 @@
       {/if}
     {/if}
 
-    {#if macroStage === GenDFMacroStage.PickStartPoint}
-      <text font-size="1em" fill="rgb(255, 0, 0)" x="30%" y="30%"> Pick a macro start point</text>
+    {#if [Action.PickGFMacroStartPoint, Action.PickLabelOfHotkey].includes(action.level2)}
       <rect
         x={(cursor[0] - screenQube[0]) * tileWidth}
         y={(cursor[1] - screenQube[1]) * tileWidth}
@@ -999,9 +1344,79 @@
         class="selection"
         fill="none"
       />
+      {#if action.level2 === Action.PickGFMacroStartPoint}
+        <text font-size="1em" fill="rgb(255, 0, 0)" x="30%" y="30%"> Pick a macro start point</text>
+      {:else if action.level2 === Action.PickLabelOfHotkey}
+        <text font-size="1em" fill="rgb(255, 0, 0)" x="30%" y="30%">
+          Pick a label of {setWaitingHotkey} key</text
+        >
+      {/if}
     {/if}
   </svg>
 </div>
+
+{#if focusLabel}
+  <!--
+  <div 
+    class="h-4 ml-6"
+    style="position: absolute; 
+      left: {(focusLabel.boundary[1][0] - screenQube[0]) * tileWidth}px; 
+      top:{(focusLabel.boundary[0][1] - screenQube[1]) * tileWidth}px"
+  >
+    <div title="no hotkey">
+      <input 
+        id="label-hotkey-input-empty"
+        type="radio"
+        name="label-hotkey"
+        value=''
+        bind:group={focusLabel.hotkey}
+      />
+      <label class="text-white" for="label-hotkey-input-empty"> No Hotkey </label>
+    </div>
+    {#each [...Array(11).keys()].map(i => `F${i+1}`) as hotkey}
+      <div title="set hotkey {hotkey} of this label">
+        <input 
+          id="label-hotkey-input-{hotkey}"
+          type="radio"
+          name="label-hotkey"
+          value={hotkey}
+          bind:group={focusLabel.hotkey}
+        />
+        <label class="text-white" for="label-hotkey-input-{hotkey}"> {hotkey} </label>
+      </div>
+    {/each}
+  </div>
+  -->
+  <div
+    class="-mt-5 -ml-8"
+    style="position: absolute; 
+        left: {(focusLabel.boundary[0][0] - screenQube[0]) * tileWidth}px; 
+        top:{(focusLabel.boundary[0][1] - screenQube[1]) * tileWidth}px"
+  >
+    <button
+      id="remove-label"
+      class="w-6 h-6 flex items-center justify-center rounded-full text-white group"
+      on:click={() => {
+        removeLabel(focusLabel.id)
+        focusLabel = null
+      }}
+    >
+      <Icon icon={DeleteIcon} height="1.5em" class="group-hover:hidden" />
+      <Icon icon={DeleteForeverIcon} height="1.5em" class="group-hover:block hidden" />
+    </button>
+  </div>
+  <input
+    id="label-name-input"
+    bind:value={focusLabel.name}
+    on:change={() => (labelHotkeys = labelHotkeys)}
+    on:keydown|stopPropagation={blurOnEnterOrEscape}
+    on:blur={() => (labels = labels)}
+    class="h-4 -mt-4"
+    style="position: absolute; 
+      left: {(focusLabel.boundary[0][0] - screenQube[0]) * tileWidth}px; 
+      top:{(focusLabel.boundary[0][1] - screenQube[1]) * tileWidth}px"
+  />
+{/if}
 
 <div
   id="topnav"
@@ -1014,7 +1429,7 @@
     class="rounded pl-4 self-stretch focus:pl-3 text-slate-500 focus:text-black focus:tracking-normal tracking-wide"
     id="fort-name"
     bind:value={fortName}
-    on:keydown|stopPropagation
+    on:keydown|stopPropagation={blurOnEnterOrEscape}
   />
   <button
     class="flex items-center rounded-full px-3 h-8 hover:bg-slate-200"
@@ -1064,10 +1479,10 @@
     </button>
     <button
       class="text-left py-1 px-2 hover:bg-slate-200 flex items-center"
-      on:click={() => (openedModal = Modals.ShowAllHotkeys)}
+      on:click={() => (openedModal = Modals.ShowUsefulHotkeys)}
     >
       <Icon icon={HotkeysIcon} inline={true} />
-      <span class="ml-1"> show all hotkeys </span>
+      <span class="ml-1"> show useful hotkeys </span>
     </button>
 
     <a
@@ -1088,12 +1503,103 @@
   </Dropdown>
 </div>
 
-<div class="minimap">
+<div
+  id="minimap"
+  class="fixed top-0 right-0 w-64 h-64 pointer-events-none bg-white bg-opacity-5 rounded-bl-lg"
+>
   <Minimap {tilemap} {cursor} {screenQube} />
+</div>
+
+<div
+  id="label-hotkeys-control"
+  class="fixed bottom-0 right-0 bg-white flex items-center flex-nowrap opacity-40 hover:opacity-100 shadow rounded-lg m-4 p-2"
+>
+  <table class="table-auto">
+    <caption class="mb-2">Label Hotkeys</caption>
+    <tbody>
+      {#each Object.entries(labelHotkeys) as [key, label]}
+        <tr>
+          <td class="text-sm border-b p-2 text-center">
+            <button
+              use:hotkey={key}
+              class:text-slate-400={!label}
+              class:underline={label}
+              disabled={!label}
+              on:click={() => {
+                if (label) followLabel(label)
+              }}
+            >
+              {key}
+            </button>
+          </td>
+          <td>
+            <div
+              class="w-48 flex justify-center items-center overflow-hidden text-ellipsis text-xs border-b p-2 text-center whitespace-nowrap"
+            >
+              {#if label}
+                <button
+                  class="rounded-full p-1 hover:bg-slate-300 mr-2"
+                  on:click={() => removeLabelHotkey(key)}
+                >
+                  <Icon icon={CloseIcon} />
+                </button>
+                <button class="grow text-left" use:hotkey={key} on:click={() => followLabel(label)}>
+                  {label.name}
+                </button>
+              {:else}
+                <button
+                  class="rounded bg-slate-200 p-1 hover:bg-slate-300"
+                  on:click={() => {
+                    action.level1 = Action.Label
+                    action.level2 = Action.PickLabelOfHotkey
+                    setWaitingHotkey = key
+                  }}
+                >
+                  Pick
+                </button>
+              {/if}
+            </div>
+          </td>
+        </tr><tr />{/each}
+    </tbody>
+  </table>
 </div>
 
 <div id="actionbox" class="fixed bottom-0 m-8 flex flex-col">
   <div id="actionbox-level2" class="flex [&>*]:m-0.5">
+    {#if action.level1 === Action.Label}
+      <div>
+        <input
+          id="action-label"
+          type="radio"
+          name="action"
+          class="hidden"
+          value={Action.Label}
+          bind:group={action.level2}
+          use:hotkey={'l'}
+          checked={action.level1 === Action.Label}
+        />
+        <label for="action-label" title="label">
+          <Icon icon={LabelIcon} height="1.5em" />
+          <span class="hotkey"> l </span>
+        </label>
+      </div>
+      <div>
+        <input
+          id="action-erase-label-area"
+          type="radio"
+          name="action"
+          class="hidden"
+          value={Action.EraseLabelArea}
+          bind:group={action.level2}
+          use:hotkey={'x'}
+        />
+        <label for="action-erase-label-area" title="erase label area">
+          <Icon icon={EraseIcon} height="1.5em" />
+          <span class="hotkey"> x </span>
+        </label>
+      </div>
+    {/if}
     {#if action.level1 === Action.DesignateMine}
       <div>
         <input
@@ -1104,7 +1610,7 @@
           value={Action.DesignateDig}
           bind:group={action.level2}
           use:hotkey={'m'}
-          checked={action.level1 === Action.DesignateMine && action.level1 === Action.DesignateMine}
+          checked={action.level1 === Action.DesignateMine}
         />
         <label for="action-designate-dig">
           <Icon icon={DigIcon} height="1.5em" />
@@ -1161,13 +1667,13 @@
         <input
           id="action-select-l2"
           type="radio"
-          name="action"
+          name="action-group"
           class="hidden"
           value={Action.Select}
-          bind:group={action.level2}
-          use:hotkey={'Control+e'}
+          bind:group={action.level1}
+          use:hotkey={'Control+g'}
         />
-        <label for="action-select-l2">
+        <label for="action-select-l2" title="select">
           <Icon icon={SelectIcon} height="1.5em" />
         </label>
       </div>
@@ -1273,7 +1779,7 @@
   <div id="actionbox-level1" class="flex [&>*]:m-0.5">
     <div>
       <input
-        id="actiongroup-designate-mine"
+        id="action-designate-mine"
         type="radio"
         name="action-group"
         class="hidden"
@@ -1281,7 +1787,7 @@
         bind:group={action.level1}
         use:hotkey={'m'}
       />
-      <label for="actiongroup-designate-mine">
+      <label for="action-designate-mine" title="desinate mine">
         <Icon icon={MineIcon} height="1.5em" />
         <span class="hotkey"> m </span>
       </label>
@@ -1297,13 +1803,13 @@
         bind:group={action.level1}
         use:hotkey={'x'}
       />
-      <label for="action-remove-designation">
+      <label for="action-remove-designation" title="remove desination">
         <Icon icon={EraseIcon} height="1.5em" />
         <span class="hotkey"> x </span>
       </label>
     </div>
 
-    <div>
+    <div class="pl-4">
       <input
         id="action-select"
         type="radio"
@@ -1313,15 +1819,32 @@
         bind:group={action.level1}
         use:hotkey={'Control+g'}
       />
-      <label for="action-select">
+      <label for="action-select" title="select">
         <Icon icon={SelectIcon} height="1.5em" />
         <span class="hotkey"> ctrl+g </span>
       </label>
     </div>
 
-    <div>
+    <div class="pl-4">
+      <input
+        id="action-label"
+        type="radio"
+        name="action-group"
+        class="hidden"
+        value={Action.Label}
+        bind:group={action.level1}
+        use:hotkey={'Control+l'}
+      />
+      <label for="action-label" title="label">
+        <Icon icon={LabelIcon} height="1.5em" />
+        <span class="hotkey"> ctrl+l </span>
+      </label>
+    </div>
+
+    <div class="pl-4">
       <button
         id="action-undo"
+        title="undo"
         on:click={() => {
           commandManager.undo()
           tilemap = tilemap
@@ -1336,11 +1859,13 @@
     <div>
       <button
         id="action-redo"
+        title="redo"
         on:click={() => {
           commandManager.redo()
           tilemap = tilemap
         }}
         use:hotkey={'Control+Z'}
+        use:hotkey={'Control+y'}
       >
         <Icon icon={RedoIcon} height="1.5em" />
         <span class="hotkey"> ctrl+Z </span>
@@ -1463,11 +1988,11 @@
       </a>
     </div>
   </Modal>
-{:else if openedModal === Modals.ShowAllHotkeys}
+{:else if openedModal === Modals.ShowUsefulHotkeys}
   <Modal on:close={() => (openedModal = Modals.None)}>
     <div class="m-4">
       <h3 class="text-lg mb-6">Hotkey Cheatsheet</h3>
-      <table class="table-auto w-full text-left [&_tr]:border-b [&_th]:p-2 [&_td]:p-2">
+      <table class="table-auto w-full text-left [&_tr]:border-b [&_th]:p-2 [&_td]:p-2 leading-8">
         <thead>
           <tr class="border-b">
             <th> Description </th>
@@ -1476,39 +2001,72 @@
         </thead>
         <tbody>
           <tr>
+            <td colspan="2" class="bg-slate-100 px-2 font-bold text-center"> Screen Control </td>
+          </tr>
+          <tr>
             <td> Pan the screen </td>
-            <td>
+            <td class="">
               <span class="code"> w </span>
               <span class="code"> a </span>
               <span class="code"> s </span>
               <span class="code"> d </span>
+
+              <br />
+
+              <span class="code"> Shift + w </span>
+              <span class="code"> Shift + a </span>
+              <span class="code"> Shift + s </span>
+              <span class="code"> Shift + d </span>
+
+              <br />
+
+              <span class="code"> Alt + w </span>
+              <span class="code"> Alt + a </span>
+              <span class="code"> Alt + s </span>
+              <span class="code"> Alt + d </span>
             </td>
           </tr>
           <tr>
-            <td> Move cursor 1 unit vertical(z-axis) </td>
+            <td> Change tile size </td>
+            <td>
+              <span class="code"> [ </span>
+              <span class="code"> ] </span>
+            </td>
+          </tr>
+          <tr>
+            <td> Move cursor vertical <br /> (z-axis) </td>
             <td>
               <span class="code"> e </span>
               <span class="code"> c </span>
-            </td>
-          </tr>
-          <tr>
-            <td> Move cursor 10 unit vertical(z-axis) </td>
-            <td>
+              <br />
               <span class="code"> Shift + e </span>
               <span class="code"> Shift + c </span>
             </td>
           </tr>
-
           <tr>
-            <td> Move cursor 1 unit horizontal(x-axis, y-axis) </td>
+            <td> Move cursor horizontal <br /> (x-axis, y-axis) </td>
             <td>
               <span class="code"> Arrow </span>
+              <br />
+              <span class="code"> Shift + Arrow </span>
             </td>
           </tr>
           <tr>
-            <td> Move cursor 10 units horizontal </td>
+            <td colspan="2" class="bg-slate-100 px-2 font-bold text-center"> Selection </td>
+          </tr>
+          <tr>
+            <td> Extend Selection </td>
             <td>
-              <span class="code"> Shift + Arrow </span>
+              <span class="code"> Shift + Select </span>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2" class="bg-slate-100 px-2 font-bold text-center"> Label </td>
+          </tr>
+          <tr>
+            <td> Extend Label Area </td>
+            <td>
+              <span class="code"> SelectLabel + Shift + Select </span>
             </td>
           </tr>
         </tbody>
@@ -1534,6 +2092,10 @@
           <tr>
             <td> Version </td>
             <td> <span class="code"> {version} </span> </td>
+          </tr>
+          <tr>
+            <td> Build </td>
+            <td> <span class="code"> {build} </span> </td>
           </tr>
           <tr>
             <td> Support DF Version </td>
@@ -1581,16 +2143,6 @@
     @apply absolute top-1.5 left-1.5 text-xs;
   }
 
-  .minimap {
-    position: fixed;
-    top: 5px;
-    right: 5px;
-    width: 300px;
-    height: 300px;
-    padding: 5px;
-    background-color: rgba(255, 255, 255, 0.03);
-  }
-
   .code {
     @apply text-xs bg-slate-100 text-red-600 py-1 px-2 tracking-wide border rounded;
   }
@@ -1603,8 +2155,7 @@
   }
 
   .selection-boundary {
-    stroke-dasharray: 4;
-    animation: dash 5s linear infinite;
+    stroke-dasharray: 16;
   }
 
   @keyframes dash {

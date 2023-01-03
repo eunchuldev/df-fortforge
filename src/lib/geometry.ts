@@ -32,3 +32,13 @@ export function distance(p: Pos, q: Pos) {
 export function manhattanDistance(p: Pos, q: Pos) {
   return p.reduce((agg, p, i) => agg + Math.abs(p - q[i]), 0)
 }
+
+export function encodePos(pos: Pos) {
+  return `${pos[0]},${pos[1]},${pos[2]}`
+}
+
+export function* qubeIter(qube: Qube): Iterable<Pos> {
+  for (let i = qube[0]; i <= qube[0] + qube[3]; ++i)
+    for (let j = qube[1]; j <= qube[1] + qube[4]; ++j)
+      for (let k = qube[2]; k <= qube[2] + qube[5]; ++k) yield [i, j, k]
+}

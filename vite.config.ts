@@ -3,6 +3,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
+import * as child from 'child_process'
 
 const file = fileURLToPath(new URL('package.json', import.meta.url))
 const json = readFileSync(file, 'utf8')
@@ -14,5 +15,6 @@ export default defineConfig({
   define: {
     __VERSION__: JSON.stringify(pkg.version),
     __SUPPORT_DF_VERSION__: JSON.stringify(pkg.supportDFVersion),
+    __COMMIT_HASH__: JSON.stringify(child.execSync('git rev-parse --short HEAD').toString()),
   },
 })

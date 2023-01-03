@@ -75,7 +75,7 @@ export function genMacro(
       let tile = tilemap.tileAt(pos)
       pos = [...pos]
       if ([Tile.UpStair, Tile.DownStair, Tile.UpDownStair].includes(tile)) {
-        while (tile !== Tile.UpStair) {
+        while ([Tile.UpStair, Tile.DownStair, Tile.UpDownStair].includes(tile)) {
           pos[2] -= 1
           tile = tilemap.tileAt(pos)
         }
