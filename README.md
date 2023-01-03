@@ -1,3 +1,11 @@
+# Playground
+
+[playground](https://eunchuldev.github.io/df-fortforge/)
+
+# ScreenShot
+
+![screenshot](assets/screenshot.gif)
+
 # Why made DF FortForge
 
 I am a user who enjoys Dwarf Fortress. My play usually goes like this. As soon as the game starts, press pause. And design the entire fortress over several hours. The finished design looks aesthetically pleasing, functionally flawless, and perfectly efficient, at least in theory. And if I press the play button.. Less than an hour later, the fortress falls for various reason.
@@ -5,14 +13,6 @@ I am a user who enjoys Dwarf Fortress. My play usually goes like this. As soon a
 Losing itself is not a problem. The problem is that I believe there is an ideal fort design somewhere. I desire to incrementally improve my fortress design to find the best one. To do so, I have to build again and again an entire fort nearly identical to the last run. It is tedious and unefficient, especailly when using the unfamiller Dwarf Fortress user interface.
 
 Dwarf fortress Built-in Macro is useful to repeat small task, but not really helpful to build entire fortress. I've heard about DFHack and QuickFort, but they are not working with steam version at this moment. So I decide to made my own construction tool.
-
-# ScreenShot
-
-![screenshot](assets/screenshot.gif)
-
-# Playground
-
-[playground](https://eunchuldev.github.io/df-fortforge/)
 
 # Who can use DF FortForge
 
