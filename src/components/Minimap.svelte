@@ -109,7 +109,11 @@
   }
 
   onMount(() => {
-    const ctx = canvas.getContext('2d')
+    const ctx: CanvasRenderingContext2D = canvas.getContext('2d')!
+    if (ctx === null)
+      throw Error(
+        'Fail to load Canvas Rendering Context. It might canvas is not supported on your browser?'
+      )
     let frame = requestAnimationFrame(loop)
 
     ctx.font = ctx.font.replace(/\d+px/, '30px')
@@ -153,4 +157,4 @@
   })
 </script>
 
-<canvas bind:this={canvas} style="width: 100%; height: 100%;" use:canvasResize />
+<canvas bind:this="{canvas}" style="width: 100%; height: 100%;" use:canvasResize></canvas>

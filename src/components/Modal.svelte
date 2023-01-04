@@ -37,19 +37,19 @@
   }
 </script>
 
-<svelte:window on:keydown={onKeydown} />
+<svelte:window on:keydown="{onKeydown}" />
 
 <div
   class="fixed inset-0 w-full h-full bg-black bg-opacity-30 overflow-y-auto"
-  on:click={close}
-  on:keydown={onKeydown}
-/>
+  on:click="{close}"
+  on:keydown="{onKeydown}"
+></div>
 
 <div
   class="max-w-3xl w-3/4 rounded-md space-y-5 overflow-auto shadow-lg bg-white fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
   role="dialog"
   aria-modal="true"
-  bind:this={modal}
+  bind:this="{modal}"
 >
   <slot />
   <!-- svelte-ignore a11y-autofocus -->

@@ -11,7 +11,7 @@ interface Options {
   stopPropagation?: boolean
 }
 
-type Param = Options | string
+type Param = Options | string | null | undefined
 
 function isKey(param: Param): param is string {
   return typeof param === 'string'
@@ -33,7 +33,7 @@ export function hotkey(node: HTMLElement, param: Param) {
   }
   if (isKey(param)) {
     options.key = param
-  } else {
+  } else if (param) {
     options = param
   }
   setAndInstall(node, options.key)
@@ -48,7 +48,7 @@ export function hotkey(node: HTMLElement, param: Param) {
 
       if (isKey(param)) {
         options.key = param
-      } else {
+      } else if (param) {
         options = param
       }
 

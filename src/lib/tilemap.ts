@@ -1,5 +1,5 @@
-import type { Pos, Qube, Volume } from './geometry'
-import { clampQube } from './geometry.js'
+import type { Pos2d, Pos, Qube, Volume } from './geometry'
+import { getBoundary, clampQube, sumPos, rotate2d } from './geometry.js'
 
 const LARGE_NUMBER = 2147483648
 
@@ -27,7 +27,7 @@ export function tileToString(tile: Tile): string {
   }[tile]
 }
 
-export interface ITilemap {
+/*export interface ITilemap {
   volume: Volume
 
   defaultTile: Tile
@@ -40,14 +40,12 @@ export interface ITilemap {
   serialize(): string
   deserialize(_code: string): void
 
-  dot(_tile: Tile, _pos: Pos): Tile
-
   dig(_qube: Qube): void
   ramp(_qube: Qube): void
   channel(_qube: Qube): void
   remove(_qube: Qube): void
   stairs(_qube: Qube): void
-}
+}*/
 
 export interface TilePiece {
   tile: Tile
@@ -61,7 +59,7 @@ interface TilemapState {
   boundingQube: Qube
 }
 
-export class Tilemap implements ITilemap {
+export class Tilemap {
   map: Tile[] = []
   volume: Volume = [400, 400, 100]
   defaultTile = Tile.Wall
@@ -157,7 +155,7 @@ export class Tilemap implements ITilemap {
     }
   }
 
-  dot(tile: Tile, pos: Pos): Tile {
+  protected dot(tile: Tile, pos: Pos): Tile {
     if (this.map[this.pos2index(pos)] === tile) return tile
     const x1y1z1: Pos = [
       Math.min(pos[0], this.boundingQube[0]),
@@ -177,109 +175,121 @@ export class Tilemap implements ITilemap {
     ]
     const last = this.map[this.pos2index(pos)]
     this.map[this.pos2index(pos)] = tile
-    /*[pos, ...neighbors2d(pos)].forEach(p => {
-      if(this.tileAt(p) === Tile.Ramp) {
-        if(!neighbors2d(p).some(q => this.tileAt(q) === Tile.Wall)) {
-          this.map[this.pos2index(p)] = Tile.Floor;
-          this.map[this.pos2index([p[0], p[1], p[2]-1])] = Tile.OpenSpace;
-        }
-      }
-    });
-    [above(pos), ...neighbors2d(above(pos))].forEach(p => {
-      if(this.tileAt(p) === Tile.Channel){
-        if(this.tileAt(below(p)) === Tile.Wall) {
-          this.map[this.pos2index(p)] = Tile.Floor;
-        } else if(this.tileAt(below(p)) !== Tile.Ramp) {
-          this.map[this.pos2index(p)] = Tile.OpenSpace;
-        }
-      }
-    });*/
     return last
   }
 
-  private fill(tile: Tile, qube: Qube) {
-    for (let i = qube[0]; i <= qube[0] + qube[3]; ++i)
-      for (let j = qube[1]; j <= qube[1] + qube[4]; ++j)
-        for (let k = qube[2]; k <= qube[2] + qube[5]; ++k) this.dot(tile, [i, j, k])
-  }
-
-  dig(qube: Qube) {
-    this.fill(Tile.Floor, qube)
-  }
-  ramp(qube: Qube) {
-    this.fill(Tile.Ramp, qube)
-  }
-  channel(qube: Qube) {
-    this.fill(Tile.Channel, qube)
-  }
-  stairs(qube: Qube) {
-    if (qube[5] === 0) return false
-    for (let i = qube[0]; i <= qube[0] + qube[3]; ++i)
+  protected fill(tile: Tile, qube: Qube): TilePiece[] {
+    const tiles: TilePiece[] = []
+    for (let i = qube[0]; i <= qube[0] + qube[3]; ++i) {
       for (let j = qube[1]; j <= qube[1] + qube[4]; ++j) {
-        if ([Tile.DownStair, Tile.UpDownStair].includes(this.tileAt([i, j, qube[2]])))
-          this.dot(Tile.UpDownStair, [i, j, qube[2]])
-        else this.dot(Tile.UpStair, [i, j, qube[2]])
-      }
-    for (let k = qube[2] + 1; k < qube[2] + qube[5]; ++k)
-      for (let i = qube[0]; i <= qube[0] + qube[3]; ++i)
-        for (let j = qube[1]; j <= qube[1] + qube[4]; ++j) this.dot(Tile.UpDownStair, [i, j, k])
-    for (let i = qube[0]; i <= qube[0] + qube[3]; ++i)
-      for (let j = qube[1]; j <= qube[1] + qube[4]; ++j) {
-        if ([Tile.UpStair, Tile.UpDownStair].includes(this.tileAt([i, j, qube[2] + qube[5]])))
-          this.dot(Tile.UpDownStair, [i, j, qube[2] + qube[5]])
-        else this.dot(Tile.DownStair, [i, j, qube[2] + qube[5]])
-      }
-  }
-  remove(qube: Qube) {
-    this.fill(this.defaultTile, qube)
-  }
-  /*  coverWithQubes(qube?: Qube): TileCover[] {
-    let mesh: TileCover | null = null;
-    let meshes: TileCover[] = [];
-    let done = new Set();
-    for(let {tile, pos} of this.tiles(qube ?? this.boundingQube)) {
-      mesh = {tile, qube: [...pos, 0, 0, 0]}
-      if(done.has(encode(pos))) continue;
-      done.add(encode(pos));
-      let expanding = false;
-      do {
-        expanding = false;
-        for(let n = 0; n < 3; ++n) {
-          for(let i of [mesh.qube[n] - 1, mesh.qube[n] + mesh.qube[n+3]+1]) {
-            let expandable = true;
-            for(let j=mesh.qube[(n+1) % 3]; j<=mesh.qube[(n+1) % 3]+mesh.qube[(n+1) % 3 + 3] && expandable; ++j) {
-              for(let k=mesh.qube[(n+2) % 3]; k<=mesh.qube[(n+2) % 3]+mesh.qube[(n+2)%3 + 3] && expandable; ++k) {
-                let pos: Pos = [0, 0, 0];
-                pos[n] = i;
-                pos[(n+1) % 3] = j;
-                pos[(n+2) % 3] = k;
-                let neighborTile = this.tileAt(pos);
-                if(done.has(encode(pos)) || neighborTile !== tile) {
-                  expandable = false;
-                }
-              }
-            }
-            if(expandable) {
-              expanding = true;
-              for(let j=mesh.qube[(n+1) % 3]; j<=mesh.qube[(n+1) % 3]+mesh.qube[(n+1) % 3 + 3] && expandable; ++j) {
-                for(let k=mesh.qube[(n+2) % 3]; k<=mesh.qube[(n+2) % 3]+mesh.qube[(n+2)%3 + 3] && expandable; ++k) {
-                  let pos: Pos = [0, 0, 0];
-                  pos[n] = i;
-                  pos[(n+1) % 3] = j;
-                  pos[(n+2) % 3] = k;
-                  done.add(encode(pos));
-                }
-              }
-              mesh.qube[n] = Math.min(i, mesh.qube[n]);
-              mesh.qube[n+3] = Math.max(i-mesh.qube[n], mesh.qube[n+3] + 1);
-            }
-          }
+        for (let k = qube[2]; k <= qube[2] + qube[5]; ++k) {
+          const pos: Pos = [i, j, k]
+          tiles.push({ pos, tile: this.dot(tile, pos) })
         }
       }
-      while (expanding);
-      meshes.push(mesh);
-      mesh = null;
     }
-    return meshes;
-  }*/
+    return tiles
+  }
+
+  dig(qube: Qube): TilePiece[] {
+    return this.fill(Tile.Floor, qube)
+  }
+  ramp(qube: Qube): TilePiece[] {
+    return this.fill(Tile.Ramp, qube)
+  }
+  channel(qube: Qube): TilePiece[] {
+    return this.fill(Tile.Channel, qube)
+  }
+  stairs(qube: Qube): TilePiece[] {
+    const tiles: TilePiece[] = []
+    if (qube[5] === 0) return []
+    for (let i = qube[0]; i <= qube[0] + qube[3]; ++i) {
+      for (let j = qube[1]; j <= qube[1] + qube[4]; ++j) {
+        const pos: Pos = [i, j, qube[2]]
+        const tile = [Tile.DownStair, Tile.UpDownStair].includes(this.tileAt(pos))
+          ? Tile.UpDownStair
+          : Tile.UpStair
+        tiles.push({ tile: this.dot(tile, pos), pos })
+      }
+    }
+    for (let k = qube[2] + 1; k < qube[2] + qube[5]; ++k)
+      for (let i = qube[0]; i <= qube[0] + qube[3]; ++i)
+        for (let j = qube[1]; j <= qube[1] + qube[4]; ++j)
+          tiles.push({ tile: this.dot(Tile.UpDownStair, [i, j, k]), pos: [i, j, k] })
+    for (let i = qube[0]; i <= qube[0] + qube[3]; ++i) {
+      for (let j = qube[1]; j <= qube[1] + qube[4]; ++j) {
+        const pos: Pos = [i, j, qube[2] + qube[5]]
+        const tile = [Tile.UpStair, Tile.UpDownStair].includes(this.tileAt(pos))
+          ? Tile.UpDownStair
+          : Tile.DownStair
+        tiles.push({ tile: this.dot(tile, pos), pos })
+      }
+    }
+    return tiles
+  }
+  remove(qube: Qube): TilePiece[] {
+    return this.fill(this.defaultTile, qube)
+  }
+  removeDots(dots: Pos[]): TilePiece[] {
+    return dots.map((pos) => ({ tile: this.dot(this.defaultTile, pos), pos }))
+  }
+  tilesAt(dots: Pos[]): TilePiece[] {
+    return dots.map((pos) => ({ pos, tile: this.tileAt(pos) }))
+  }
+  putTiles(tiles: TilePiece[]): TilePiece[] {
+    return tiles.map(({ pos, tile }) => ({ tile: this.dot(tile, pos), pos }))
+  }
+  translate(tiles: Pos[], vector: Pos, ignoreBackground = false): TilePiece[] {
+    return (ignoreBackground ? tiles.filter((pos) => this.tileAt(pos) !== this.defaultTile) : tiles)
+      .map((pos) => ({ pos: sumPos(pos, vector), tile: this.dot(this.defaultTile, pos) }))
+      .map(({ pos, tile }) => ({ pos, tile: this.dot(tile, pos) }))
+  }
+  rotate2d(
+    tiles: Pos[],
+    ccw = false,
+    pivot?: Pos2d
+  ): { pivot: [number, number]; tiles: TilePiece[] } {
+    if (pivot === undefined) {
+      const boundary = getBoundary(tiles)
+      pivot = [boundary[0] + boundary[3] * 0.5, boundary[1] + boundary[4] * 0.5]
+    }
+    return {
+      pivot,
+      tiles: tiles
+        .map((pos) => ({
+          pos: <Pos>(
+            [
+              ...rotate2d(<Pos2d>pos.slice(0, 2), pivot!, (ccw ? 1 : -1) * Math.PI * 0.5),
+              pos[2],
+            ].map(Math.round)
+          ),
+          tile: this.dot(this.defaultTile, pos),
+        }))
+        .map(({ pos, tile }) => ({ pos, tile: this.dot(tile, pos) })),
+    }
+  }
+  flip2d(
+    tiles: Pos[],
+    vertical = false,
+    pivot?: Pos2d
+  ): { pivot: [number, number]; tiles: TilePiece[] } {
+    if (pivot === undefined) {
+      const boundary = getBoundary(tiles)
+      pivot = [boundary[0] + boundary[3] * 0.5, boundary[1] + boundary[4] * 0.5]
+    }
+
+    return {
+      pivot,
+      tiles: tiles
+        .map((pos) => ({
+          pos: <Pos>(
+            (vertical
+              ? [pos[0], pivot![1] * 2 - pos[1], pos[2]]
+              : [pivot![0] * 2 - pos[0], pos[1], pos[2]])
+          ),
+          tile: this.dot(this.defaultTile, pos),
+        }))
+        .map(({ pos, tile }) => ({ pos, tile: this.dot(tile, pos) })),
+    }
+  }
 }

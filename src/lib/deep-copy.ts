@@ -6,7 +6,7 @@ export function deepCopy<T>(source: T): T {
       ? new Date(source.getTime())
       : source && typeof source === 'object'
       ? Object.getOwnPropertyNames(source).reduce((o: { [key: string]: unknown }, prop) => {
-          Object.defineProperty(o, prop, Object.getOwnPropertyDescriptor(source, prop))
+          Object.defineProperty(o, prop, Object.getOwnPropertyDescriptor(source, prop)!)
           o[prop] = deepCopy((source as { [key: string]: unknown })[prop])
           return o
         }, Object.create(Object.getPrototypeOf(source) as object))

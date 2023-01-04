@@ -7,8 +7,8 @@
   }
 </script>
 
-<div use:clickOutside={() => (open = false)} on:keydown={onKeydown} class="relative">
-  <button on:click={() => (open = !open)} class="w-full h-full border-0 bg-none">
+<div use:clickOutside="{() => (open = false)}" on:keydown="{onKeydown}" class="relative">
+  <button on:click="{() => (open = !open)}" class="w-full h-full border-0 bg-none">
     <slot name="head" />
   </button>
   {#if open}
