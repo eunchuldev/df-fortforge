@@ -83,6 +83,7 @@ export const WORKSHOPSNOGROUP = [
   'Crafts',
   'Jeweler',
   'Mechanic',
+  'Metalsmith',
   'Screw Press',
   'Siege',
   'Soap Maker',
