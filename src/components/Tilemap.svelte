@@ -284,7 +284,11 @@
 
   function abandonFort() {
     if (confirm('Really Abandon Your Fortress?')) {
+      commandManager = new CommandManager();
       tilemap = new TilemapCommand(commandManager, tilemapVolume)
+      labelManager = new SimpleLabelManagerCommand(commandManager)
+      workshopManager = new WorkshopManagerCommand(commandManager)
+
       cursorAt(Math.floor(tilemapVolume[0] * 0.5), Math.floor(tilemapVolume[1] * 0.5), 0)
       screenQube[0] = Math.floor(cursor[0] - screenQube[3] * 0.5)
       screenQube[1] = Math.floor(cursor[1] - screenQube[4] * 0.5)
