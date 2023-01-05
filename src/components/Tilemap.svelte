@@ -80,7 +80,7 @@
   import { qubeIter, subPos } from '../lib/geometry.js'
 
   enum Action {
-    DesignateMine,
+    DesignateMine = 1,
     RemoveDesignation,
 
     DesignateDig,
@@ -103,11 +103,11 @@
   }
 
   enum DrawMode {
-    Rectangle,
+    Rectangle = 1,
     Free,
   }
   enum DrawRectStage {
-    StandBy,
+    StandBy = 1,
     Drawing,
   }
   interface ActionState {
