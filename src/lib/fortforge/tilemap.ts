@@ -1,5 +1,5 @@
-import type { Pos2d, Pos, Qube, Volume } from './geometry'
-import { getBoundary, clampQube, sumPos, rotate2d } from './geometry.js'
+import type { Pos2d, Pos, Qube, Volume } from '../utils/geometry'
+import { getBoundary, clampQube, sumPos, rotate2d } from '../utils/geometry.js'
 
 const LARGE_NUMBER = 2147483648
 
@@ -26,26 +26,6 @@ export function tileToString(tile: Tile): string {
     [Tile.OpenSpace]: 'openspace',
   }[tile]
 }
-
-/*export interface ITilemap {
-  volume: Volume
-
-  defaultTile: Tile
-
-  tiles(_qube: Qube): Iterable<TilePiece>
-
-  boundingQube: Qube
-  resize(_volume: Volume): void
-  tileAt(_pos: Pos): Tile
-  serialize(): string
-  deserialize(_code: string): void
-
-  dig(_qube: Qube): void
-  ramp(_qube: Qube): void
-  channel(_qube: Qube): void
-  remove(_qube: Qube): void
-  stairs(_qube: Qube): void
-}*/
 
 export interface TilePiece {
   tile: Tile
@@ -78,7 +58,8 @@ export class Tilemap {
     this.resize(volume)
   }
 
-  tiles(qube: Qube): Iterable<TilePiece> {
+  tiles(qube?: Qube): Iterable<TilePiece> {
+    qube ??= this.boundingQube
     const [x, y, z, w, h, d] = clampQube(qube, [
       0,
       0,

@@ -1,9 +1,9 @@
-import type { Pos, Qube } from './geometry'
-import { LabelManager } from './label.js'
+import type { Pos, Qube } from '../utils/geometry'
 import type { ID, LabelData } from './label'
-import { encodePos } from './geometry.js'
 import type { Label } from './label'
-import type { CommandManager } from './command'
+import type { CommandManager } from '../utils/command'
+import { LabelManager } from './label.js'
+import { encodePos } from '../utils/geometry.js'
 
 export class LabelManagerCommand<T extends Label> extends LabelManager<T> {
   command: CommandManager

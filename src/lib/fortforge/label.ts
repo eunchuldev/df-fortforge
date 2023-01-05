@@ -1,9 +1,9 @@
-import type { Pos, Qube } from './geometry'
-import { qubeIter, encodePos, collision } from './geometry.js'
+import type { Pos, Qube } from '../utils/geometry'
+import { qubeIter, encodePos, collision } from '../utils/geometry.js'
 import { v4 } from 'uuid'
-import { randomColors } from '../lib/random-colors.js'
-import { cyrb53 } from './crypto.js'
-import { deepCopy } from './deep-copy.js'
+import { randomColors } from '../utils/random-colors.js'
+import { cyrb53 } from '../utils/crypto.js'
+import { deepCopy } from '../utils/deep-copy.js'
 
 export type ID = string
 

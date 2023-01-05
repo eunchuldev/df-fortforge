@@ -32,3 +32,33 @@ export class CommandManager {
     }
   }
 }
+
+const COMMAND = new CommandManager()
+
+export function undo() {
+  COMMAND.undo()
+}
+export function redo() {
+  COMMAND.redo()
+}
+
+export function undoable<V = any, T = any, U extends any[] = any[]>(
+  undo: (obj: V, args: U, result: T) => void
+) {
+  return function (
+    _target: V,
+    _propertyKey: string | symbol,
+    descriptor: TypedPropertyDescriptor<(this: V, ...args: U) => T>
+  ) {
+    const fn = descriptor.value
+    if (fn === undefined)
+      throw Error('fail to implement undoable decorator: descriptor.value is empty')
+    descriptor.value = function (this: V, ...args: U) {
+      return COMMAND.execute({
+        forward: () => fn.apply(this, args),
+        backward: (result: T) => undo(this, args, result),
+      })
+    }
+    return descriptor
+  }
+}

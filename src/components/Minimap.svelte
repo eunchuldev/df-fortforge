@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
 
-  import type { Tile, Tilemap } from '../lib/tilemap.js'
-  import type { Pos, Qube, Rect } from '../lib/geometry'
+  import type { Tile, Tilemap } from '../lib/fortforge/tilemap.js'
+  import type { Pos, Qube, Rect } from '../lib/utils/geometry'
   import { canvasResize } from '../lib/svelte-actions/canvas-resize.js'
 
   export let tilemap: Tilemap

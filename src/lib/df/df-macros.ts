@@ -1,9 +1,9 @@
-import type { Tilemap } from './tilemap.js'
-import { Tile } from './tilemap.js'
-import type { Cover } from './algorithm'
-import { decomposeIntoQubes, planCoverRoute } from './algorithm.js'
-import type { Qube, Pos } from './geometry'
-import { manhattanDistance } from './geometry'
+import type { Tilemap } from '../fortforge/tilemap.js'
+import { Tile } from '../fortforge/tilemap.js'
+import type { Cover } from '../utils/algorithm'
+import { decomposeIntoQubes, planCoverRoute } from '../utils/algorithm.js'
+import type { Qube, Pos } from '../utils/geometry'
+import { manhattanDistance } from '../utils/geometry'
 import { snakeCase } from 'change-case'
 
 enum Command {

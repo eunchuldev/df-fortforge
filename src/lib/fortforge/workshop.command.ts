@@ -1,5 +1,5 @@
-import type { Pos, Pos2d } from './geometry'
-import { encodePos } from './geometry'
+import type { Pos, Pos2d } from '../utils/geometry'
+import { encodePos } from '../utils/geometry'
 import type { Label, LabelTile } from './label.js'
 import { LabelManagerCommand } from './label.command.js'
 import ClothAndLeatherIcon from '@iconify-icons/mdi/hanger'

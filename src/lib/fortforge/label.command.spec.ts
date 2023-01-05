@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { CommandManager } from './command.js'
+import { CommandManager } from '../utils/command.js'
 import { SimpleLabelManagerCommand } from './simple-label.command.js'
 
 test('LabelManagerCommand', () => {

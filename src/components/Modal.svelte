@@ -14,7 +14,7 @@
 
     if (e.key === 'Tab') {
       // trap focus
-      const nodes: Iterable<HTMLElement> = modal.querySelectorAll('*')
+      const nodes: NodeListOf<HTMLElement> = modal.querySelectorAll('*')
       const tabbable = Array.from(nodes).filter((n) => n.tabIndex >= 0)
 
       let index = tabbable.indexOf(<HTMLElement>document.activeElement)

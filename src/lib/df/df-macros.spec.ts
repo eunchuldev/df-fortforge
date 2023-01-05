@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { Tilemap } from './tilemap.js'
+import { Tilemap } from '../fortforge/tilemap.js'
 import { genMacro } from './df-macros.js'
 
 test('genMacros', () => {

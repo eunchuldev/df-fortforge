@@ -1,12 +1,6 @@
-<style lang="postcss">
-  .code {
-    @apply text-xs bg-slate-100 text-red-600 py-1 px-2 tracking-wide border rounded;
-  }
-</style>
-
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import type { Volume } from '../lib/geometry'
+  import type { Volume } from '../lib/utils/geometry'
   import { version, supportDFVersion, build } from '../lib/constants.js'
   import { snakeCase } from 'change-case'
   import Modal from './Modal.svelte'
@@ -73,7 +67,7 @@
 
   function blurOnEnterOrEscape(e: KeyboardEvent) {
     if (['Enter', 'Escape'].includes(e.key)) {
-      ;(<HTMLInputElement>e.target).blur()
+      (<HTMLInputElement>e.target).blur()
       return false
     }
   }
@@ -417,3 +411,9 @@
     </div>
   </Modal>
 {/if}
+
+<style lang="postcss">
+  .code {
+    @apply text-xs bg-slate-100 text-red-600 py-1 px-2 tracking-wide border rounded;
+  }
+</style>

@@ -2,7 +2,9 @@
   "compilerOptions": {
     "composite": true,
     "module": "ESNext",
-    "moduleResolution": "Node"
+    "moduleResolution": "Node",
+    "experimentalDecorators": true,
+    "lib": ["es2018", "dom"]
   },
   "include": ["vite.config.ts"]
 }

@@ -1,8 +1,8 @@
-import type { CommandManager } from './command'
+import type { CommandManager } from '../utils/command'
 import { Tilemap } from './tilemap.js'
 import type { TilePiece } from './tilemap.js'
-import type { Volume, Qube, Pos, Pos2d } from './geometry'
-import { subPos, rotate2d } from './geometry.js'
+import type { Volume, Qube, Pos, Pos2d } from '../utils/geometry'
+import { subPos, rotate2d } from '../utils/geometry.js'
 
 export class TilemapCommand extends Tilemap {
   commandManager: CommandManager

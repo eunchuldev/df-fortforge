@@ -1,11 +1,5 @@
-<style lang="postcss">
-  .activated {
-    @apply bg-slate-500;
-  }
-</style>
-
 <script lang="ts">
-  import { WorkshopManagerCommand } from '../lib/workshop.command.js'
+  import { WorkshopManagerCommand } from '../lib/fortforge/workshop.command.js'
   import { hotkey } from '../lib/svelte-actions/hotkey.js'
   import Icon from '@iconify/svelte/dist/OfflineIcon.svelte'
 
@@ -119,3 +113,9 @@
     </div>
   </div>
 {/if}
+
+<style lang="postcss">
+  .activated {
+    @apply bg-slate-500;
+  }
+</style>

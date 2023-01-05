@@ -1,53 +1,17 @@
-<style lang="postcss">
-  #actionbox :is(label, button) {
-    @apply relative grid bg-white w-12 h-12 rounded-lg shadow hover:bg-slate-300 place-items-center;
-  }
-  #actionbox input[type='radio']:checked + label {
-    @apply bg-slate-500;
-  }
-  #actionbox .hotkey {
-    @apply absolute top-0.5 left-1 text-xs;
-  }
-
-  #actionbox #actionbox-drawmode :is(label, button) {
-    @apply rounded-2xl;
-  }
-  #actionbox #actionbox-drawmode .hotkey {
-    @apply absolute top-1.5 left-1.5 text-xs;
-  }
-
-  .selection {
-    stroke-dasharray: 4;
-    animation: dash 5s linear infinite;
-    cursor: move;
-    pointer-events: fill;
-  }
-
-  .selection-boundary {
-    stroke-dasharray: 16;
-  }
-
-  @keyframes dash {
-    to {
-      stroke-dashoffset: 128;
-    }
-  }
-</style>
-
 <script lang="ts">
-  import type { Label } from '../lib/label.js'
-  import { WorkshopManagerCommand } from '../lib/workshop.command.js'
-  import { SimpleLabelManagerCommand } from '../lib/simple-label.command.js'
+  import type { Label } from '../lib/fortforge/label.js'
+  import { WorkshopManagerCommand } from '../lib/fortforge/workshop.command.js'
+  import { SimpleLabelManagerCommand } from '../lib/fortforge/simple-label.command.js'
   import TopNav from './TopNav.svelte'
-  import { Tile, tileToString } from '../lib/tilemap.js'
-  import { TilemapCommand } from '../lib/tilemap.command.js'
+  import { Tile, tileToString } from '../lib/fortforge/tilemap.js'
+  import { TilemapCommand } from '../lib/fortforge/tilemap.command.js'
   import { hotkey } from '../lib/svelte-actions/hotkey.js'
   import Minimap from './Minimap.svelte'
-  import { CommandManager } from '../lib/command.js'
+  import { CommandManager } from '../lib/utils/command.js'
   import { snakeCase } from 'change-case'
   import WorkshopSelect from './WorkshopSelect.svelte'
   import Icon from '@iconify/svelte/dist/OfflineIcon.svelte'
-  import { randomColors } from '../lib/random-colors.js'
+  import { randomColors } from '../lib/utils/random-colors.js'
   //import FortIcon from '@iconify-icons/mdi/castle';
   import DigIcon from '@iconify-icons/mdi/pickaxe'
   import MineIcon from '@iconify-icons/game-icons/dig-dug'
@@ -73,11 +37,11 @@
   import CloseIcon from '@iconify-icons/mdi/close'
   import WorkshopIcon from '@iconify-icons/mdi/store'
 
-  import { genFortressName } from '../lib/df-name-gen.js'
-  import { genMacro } from '../lib/df-macros.js'
+  import { genFortressName } from '../lib/df/df-name-gen.js'
+  import { genMacro } from '../lib/df/df-macros.js'
 
-  import type { Pos, Qube, Area, Volume } from '../lib/geometry'
-  import { qubeIter, subPos } from '../lib/geometry.js'
+  import type { Pos, Qube, Area, Volume } from '../lib/utils/geometry'
+  import { qubeIter, subPos } from '../lib/utils/geometry.js'
 
   enum Action {
     DesignateMine = 1,
@@ -730,7 +694,7 @@
 
   function blurOnEnterOrEscape(e: KeyboardEvent) {
     if (['Enter', 'Escape'].includes(e.key)) {
-      ;(e.target as HTMLInputElement).blur()
+      (e.target as HTMLInputElement).blur()
       return false
     }
   }
@@ -1649,3 +1613,39 @@
   on:uploadFort="{(e) => decryptState(e.detail)}"
   on:downloadFort="{(e) => e.detail(encryptState())}"
 />
+
+<style lang="postcss">
+  #actionbox :is(label, button) {
+    @apply relative grid bg-white w-12 h-12 rounded-lg shadow hover:bg-slate-300 place-items-center;
+  }
+  #actionbox input[type='radio']:checked + label {
+    @apply bg-slate-500;
+  }
+  #actionbox .hotkey {
+    @apply absolute top-0.5 left-1 text-xs;
+  }
+
+  #actionbox #actionbox-drawmode :is(label, button) {
+    @apply rounded-2xl;
+  }
+  #actionbox #actionbox-drawmode .hotkey {
+    @apply absolute top-1.5 left-1.5 text-xs;
+  }
+
+  .selection {
+    stroke-dasharray: 4;
+    animation: dash 5s linear infinite;
+    cursor: move;
+    pointer-events: fill;
+  }
+
+  .selection-boundary {
+    stroke-dasharray: 16;
+  }
+
+  @keyframes dash {
+    to {
+      stroke-dashoffset: 128;
+    }
+  }
+</style>

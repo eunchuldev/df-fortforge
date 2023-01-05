@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
@@ -16,5 +17,8 @@ export default defineConfig({
     __VERSION__: JSON.stringify(pkg.version),
     __SUPPORT_DF_VERSION__: JSON.stringify(pkg.supportDFVersion),
     __COMMIT_HASH__: JSON.stringify(child.execSync('git rev-parse --short HEAD').toString()),
+  },
+  test: {
+    setupFiles: ['fake-indexeddb/auto'],
   },
 })

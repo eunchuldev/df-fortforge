@@ -1,7 +1,7 @@
 import type { Label, LabelTile } from './label.js'
 import { LabelManagerCommand } from './label.command.js'
-import { qubeIter, encodePos } from './geometry.js'
-import type { Qube } from './geometry'
+import { qubeIter, encodePos } from '../utils/geometry.js'
+import type { Qube } from '../utils/geometry'
 
 export interface SimpleLabel extends Label {
   __note__: never

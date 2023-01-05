@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { Tilemap } from './tilemap.js'
+import { Tilemap } from '../fortforge/tilemap.js'
 import { decomposeIntoQubes, solveHSPBnB, solveHSPOpt2 } from './algorithm.js'
 import type { Pos } from './geometry'
 
