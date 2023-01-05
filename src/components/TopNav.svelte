@@ -73,7 +73,7 @@
 
   function blurOnEnterOrEscape(e: KeyboardEvent) {
     if (['Enter', 'Escape'].includes(e.key)) {
-      ;(e.target as HTMLInputElement).blur()
+      ;(<HTMLInputElement>e.target).blur()
       return false
     }
   }
@@ -120,7 +120,7 @@
     </button>
     <button
       class="text-left py-1 px-2 hover:bg-slate-200 flex items-center"
-      on:click="{() => (openedModal = Modals.DownloadFort)}"
+      on:click="{() => dispatch('downloadFort', downloadFort)}"
     >
       <Icon icon="{SaveAsIcon}" inline="{true}" />
       <span class="ml-1"> save to desktop</span>

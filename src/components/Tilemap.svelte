@@ -284,7 +284,7 @@
 
   function abandonFort() {
     if (confirm('Really Abandon Your Fortress?')) {
-      commandManager = new CommandManager();
+      commandManager = new CommandManager()
       tilemap = new TilemapCommand(commandManager, tilemapVolume)
       labelManager = new SimpleLabelManagerCommand(commandManager)
       workshopManager = new WorkshopManagerCommand(commandManager)

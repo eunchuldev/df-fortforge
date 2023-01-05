@@ -14,8 +14,7 @@
     "fix": "eslint --fix \"{,!(node_modules|public)/**/}*.{js,svelte}\"",
     "lint": "eslint \"{,!(node_modules|public)/**/}*.{js,svelte}\"",
     "prelint": "npm run format",
-    "format": "prettier --write --plugin-search-dir=. .",
-    "deploy": "npx gh-pages -d dist"
+    "format": "prettier --write --plugin-search-dir=. ."
   },
   "devDependencies": {
     "@iconify-icons/bi": "^1.2.15",
@@ -38,7 +37,6 @@
     "child_process": "^1.0.2",
     "eslint": "^8.31.0",
     "eslint-plugin-svelte3": "^4.0.0",
-    "gh-pages": "^4.0.0",
     "postcss": "^8.4.20",
     "prettier": "^2.8.1",
     "prettier-plugin-svelte": "^2.9.0",

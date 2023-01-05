@@ -149,8 +149,10 @@ export function decomposeIntoQubes<T>({
             else if (expanding && preferWideQube && n === dimensionOrder[1]) break
           }
         }
-        covers.push(cover)
-        cover = null
+        if (cover) {
+          covers.push(cover)
+          cover = null
+        }
       }
     }
   }
@@ -278,6 +280,8 @@ export function planCoverRoute<T>(
   distanceFn: (_p: Qube, _q: Qube) => number = center2centerEqulaidan
 ): Cover<T>[] {
   const V = covers.length
+  if (V === 1) return covers
+
   const adjMat: number[][] = []
   for (let i = 0; i < V; ++i) {
     adjMat.push([])
@@ -315,10 +319,9 @@ export function planCoverRoute<T>(
       }
     }
   }
+  if (V == 2) return [covers[startCoverIndex], covers[1 - startCoverIndex]]
 
   const route =
-    covers.length < 100
-      ? solveHSPBnB(adjMat, startCoverIndex)
-      : solveHSPOpt2(adjMat, startCoverIndex)
+    V < 100 ? solveHSPBnB(adjMat, startCoverIndex) : solveHSPOpt2(adjMat, startCoverIndex)
   return route.map((i) => covers[i])
 }
