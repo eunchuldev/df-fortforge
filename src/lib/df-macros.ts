@@ -45,6 +45,10 @@ interface State {
   menu: OpenMenuState
 }
 
+function isStair(tile: Tile) {
+  return tile === Tile.UpStair || tile === Tile.DownStair || tile === Tile.UpDownStair
+}
+
 export function genMacro(
   macroName: string,
   tilemap: Tilemap,
@@ -60,46 +64,44 @@ export function genMacro(
     menu: OpenMenuState.Nothing,
   }
   const commands: Command[] = []
-  const nostairCovers = decomposeIntoQubes({
+  const region = qube ?? tilemap.boundingQube
+  let hasStairs = false
+  const covers = decomposeIntoQubes({
     getTile: (pos: Pos) => {
       const tile = tilemap.tileAt(pos)
-      if ([Tile.UpStair, Tile.DownStair, Tile.UpDownStair].includes(tile))
+      if (isStair(tile)) {
+        hasStairs = true
         return tilemap.defaultTile
-      else return tile
+      }
+      return tile
     },
-    qube: qube ?? tilemap.boundingQube,
+    qube: region,
     emptyTile: tilemap.defaultTile,
   })
-  const stairCovers = decomposeIntoQubes({
-    getTile: (pos: Pos) => {
-      let tile = tilemap.tileAt(pos)
-      pos = [...pos]
-      if ([Tile.UpStair, Tile.DownStair, Tile.UpDownStair].includes(tile)) {
-        while ([Tile.UpStair, Tile.DownStair, Tile.UpDownStair].includes(tile)) {
-          pos[2] -= 1
-          tile = tilemap.tileAt(pos)
-        }
-        return pos[2]
-      } else return -1
-    },
-    qube: qube ?? tilemap.boundingQube,
-    emptyTile: -1,
-    preferVerticalQube: true,
-  }).map((t) => ({ ...t, tile: Tile.UpDownStair }))
-  const routedCovers = planCoverRoute(
-    [...nostairCovers, ...stairCovers],
-    startPos,
-    0,
-    (p: Qube, q: Qube) => {
-      return (
-        Math.abs(p[2] + p[5] * 0.5 - q[2] - q[5] * 0.5) +
-        Math.max(
-          Math.abs(p[0] + p[3] * 0.5 - q[0] - q[3] * 0.5),
-          Math.abs(p[1] + p[4] * 0.5 - q[1] - q[4] * 0.5)
-        )
+  if (hasStairs) {
+    const floorLimit = tilemap.volume[2]
+    const stairCovers = decomposeIntoQubes({
+      getTile: (pos: Pos) => {
+        let top = pos[2]
+        if (Math.abs(top) > floorLimit || !isStair(tilemap.tileAt(pos))) return null
+        while (top > -floorLimit && isStair(tilemap.tileAt([pos[0], pos[1], top - 1]))) --top
+        return top
+      },
+      qube: region,
+      emptyTile: null,
+      preferVerticalQube: true,
+    })
+    for (const { qube } of stairCovers) covers.push({ qube, tile: Tile.UpDownStair })
+  }
+  const routedCovers = planCoverRoute(covers, startPos, 0, (p: Qube, q: Qube) => {
+    return (
+      Math.abs(p[2] + p[5] * 0.5 - q[2] - q[5] * 0.5) +
+      Math.max(
+        Math.abs(p[0] + p[3] * 0.5 - q[0] - q[3] * 0.5),
+        Math.abs(p[1] + p[4] * 0.5 - q[1] - q[4] * 0.5)
       )
-    }
-  )
+    )
+  })
   let pos = startPos
   for (const cover of routedCovers) {
     pos = genCoverMacro(pos, cover, commands, state)
@@ -196,7 +198,7 @@ function genCoverMacro(
     commands.push(Command.DesignateRamp)
   } else if (tile === Tile.Channel) {
     commands.push(Command.DesignateChannel)
-  } else if ([Tile.UpStair, Tile.UpDownStair, Tile.DownStair].includes(tile)) {
+  } else if (isStair(tile)) {
     commands.push(Command.DesignateStair)
   }
 

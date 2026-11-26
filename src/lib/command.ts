@@ -12,7 +12,37 @@ export interface CommandWithResult<T = unknown> {
 export class CommandManager {
   commands: CommandWithResult<any>[] = []
   cursor = 0
+  private groupHistory?: CommandManager
+
+  group<T>(edit: () => T): T {
+    const history = new CommandManager()
+    const parent = this.groupHistory
+    const undo = () => {
+      while (history.cursor > 0) history.undo()
+    }
+    this.groupHistory = history
+    let result: T
+    try {
+      result = edit()
+    } catch (error) {
+      undo()
+      throw error
+    } finally {
+      this.groupHistory = parent
+    }
+    if (history.cursor) {
+      this.execute({
+        forward: () => {
+          while (history.cursor < history.commands.length) history.redo()
+        },
+        backward: undo,
+      })
+    }
+    return result
+  }
+
   execute<T>(command: Command<T>): T {
+    if (this.groupHistory) return this.groupHistory.execute(command)
     const res = command.forward()
     this.commands[this.cursor] = { ...command, res }
     this.commands.length = this.cursor + 1

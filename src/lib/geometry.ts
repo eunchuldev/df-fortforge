@@ -4,7 +4,15 @@ export type Line = [Pos, Pos]
 export type Qube = [number, number, number, number, number, number]
 export type Rect = [number, number, number, number]
 export type Area = [number, number]
-export type Volume = [number, number, number]
+export type Volume = [width: number, height: number, floorLimit: number]
+
+export function volumeBounds([width, height, floorLimit]: Volume): Qube {
+  return [0, 0, -floorLimit, width - 1, height - 1, 2 * floorLimit]
+}
+
+export function inBounds([x, y, z]: Pos, [width, height, floorLimit]: Volume): boolean {
+  return x >= 0 && x < width && y >= 0 && y < height && Math.abs(z) <= floorLimit
+}
 
 export function clampPos(pos: Pos, minpos: Pos, maxpos: Pos): Pos {
   return pos.map((p, i) => Math.min(Math.max(minpos[i], p), maxpos[i])) as Pos

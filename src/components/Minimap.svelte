@@ -1,16 +1,22 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { devicePixelRatio } from 'svelte/reactivity/window'
 
-  import type { Tile, Tilemap } from '../lib/tilemap.js'
+  import type { Tilemap } from '../lib/tilemap.js'
   import type { Pos, Qube, Rect } from '../lib/geometry'
-  import { canvasResize } from '../lib/svelte-actions/canvas-resize.js'
-
-  export let tilemap: Tilemap
-  export let cursor: Pos
-  export let screenQube: Qube
-  export let floorLabels: Record<number, string> = []
+  let {
+    tilemap,
+    cursor,
+    screenQube,
+    floorLabels = {},
+  }: {
+    tilemap: Tilemap
+    cursor: Pos
+    screenQube: Qube
+    floorLabels?: Record<number, string>
+  } = $props()
 
   let canvas: HTMLCanvasElement
+  let bounds = $state<DOMRectReadOnly>()
 
   const visibleFloors = 7
 
@@ -30,15 +36,6 @@
     ctx.save()
     ctx.globalAlpha = cursor[2] === depth ? 1.0 : 0.5
     ctx.font = ctx.font.replace(/\d+px/, '22px')
-    /*drawTextOutlined(
-      ctx, 
-      `${-depth} F` + (floorLabels[-depth] ? ` (${floorLabels[-depth]})` : ''),
-      3,
-      0.5 * canvas.height + ((depth - cursor[2]) / visibleFloors) * canvas.height - 5,
-      'white',
-      'black',
-      0.8,
-    )*/
     ctx.fillText(
       `${-depth} F` + (floorLabels[-depth] ? ` (${floorLabels[-depth]})` : ''),
       3,
@@ -47,13 +44,7 @@
     ctx.restore()
   }
 
-  function drawTile(
-    ctx: CanvasRenderingContext2D,
-    _tile: Tile,
-    pos: Pos,
-    boundingRect: Rect,
-    cursor: Pos
-  ) {
+  function drawTile(ctx: CanvasRenderingContext2D, pos: Pos, boundingRect: Rect, cursor: Pos) {
     ctx.save()
     ctx.translate(0, 0.5 * canvas.height + ((pos[2] - cursor[2]) / visibleFloors) * canvas.height)
     transformIsometric(ctx)
@@ -108,53 +99,52 @@
     ctx.restore()
   }
 
-  onMount(() => {
-    const ctx: CanvasRenderingContext2D = canvas.getContext('2d')!
+  $effect(() => {
+    if (!bounds) return
+    const scale = devicePixelRatio.current ?? 1
+    const width = Math.round(bounds.width * scale)
+    const height = Math.round(bounds.height * scale)
+    if (canvas.width !== width) canvas.width = width
+    if (canvas.height !== height) canvas.height = height
+    const ctx = canvas.getContext('2d')
     if (ctx === null)
       throw Error(
         'Fail to load Canvas Rendering Context. It might canvas is not supported on your browser?'
       )
-    let frame = requestAnimationFrame(loop)
-
     ctx.font = ctx.font.replace(/\d+px/, '30px')
 
-    function loop() {
-      frame = requestAnimationFrame(loop)
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      const c = [
-        tilemap.boundingQube[0] + tilemap.boundingQube[3] * 0.5,
-        tilemap.boundingQube[1] + tilemap.boundingQube[4] * 0.5,
-      ]
-      const d = Math.max(tilemap.boundingQube[3], tilemap.boundingQube[4]) + 5
-      const boundingRect: Rect = [Math.max(c[0] - d * 0.5, 0), Math.max(c[1] - d * 0.5, 0), d, d]
-      for (
-        let i = cursor[2] + Math.floor(visibleFloors * 0.5) + 5;
-        i >= Math.max(cursor[2] - Math.floor(visibleFloors * 0.5) - 5, 0);
-        --i
-      ) {
-        drawFloor(ctx, i, cursor)
-        let boundingQube: Qube = [...tilemap.boundingQube]
-        boundingQube[2] = i
-        boundingQube[5] = 0
-        for (let tile of tilemap.tiles(boundingQube)) {
-          drawTile(ctx, tile.tile, tile.pos, boundingRect, cursor)
-        }
-      }
-      drawFloor(ctx, cursor[2], cursor)
-      let boundingQube: Qube = [...tilemap.boundingQube]
-      boundingQube[2] = cursor[2]
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const c = [
+      tilemap.boundingQube[0] + tilemap.boundingQube[3] * 0.5,
+      tilemap.boundingQube[1] + tilemap.boundingQube[4] * 0.5,
+    ]
+    const d = Math.max(tilemap.boundingQube[3], tilemap.boundingQube[4]) + 5
+    const boundingRect: Rect = [Math.max(c[0] - d * 0.5, 0), Math.max(c[1] - d * 0.5, 0), d, d]
+    const floorLimit = tilemap.volume[2]
+    const radius = Math.floor(visibleFloors * 0.5) + 5
+    for (
+      let i = Math.min(cursor[2] + radius, floorLimit);
+      i >= Math.max(cursor[2] - radius, -floorLimit);
+      --i
+    ) {
+      drawFloor(ctx, i, cursor)
+      const boundingQube: Qube = [...tilemap.boundingQube]
+      boundingQube[2] = i
       boundingQube[5] = 0
-      for (let tile of tilemap.tiles(boundingQube)) {
-        drawTile(ctx, tile.tile, tile.pos, boundingRect, cursor)
+      for (const { pos } of tilemap.tiles(boundingQube)) {
+        drawTile(ctx, pos, boundingRect, cursor)
       }
-
-      drawScreenQube(ctx, screenQube, boundingRect)
+    }
+    drawFloor(ctx, cursor[2], cursor)
+    const boundingQube: Qube = [...tilemap.boundingQube]
+    boundingQube[2] = cursor[2]
+    boundingQube[5] = 0
+    for (const { pos } of tilemap.tiles(boundingQube)) {
+      drawTile(ctx, pos, boundingRect, cursor)
     }
 
-    return () => {
-      cancelAnimationFrame(frame)
-    }
+    drawScreenQube(ctx, screenQube, boundingRect)
   })
 </script>
 
-<canvas bind:this="{canvas}" style="width: 100%; height: 100%;" use:canvasResize></canvas>
+<canvas bind:this={canvas} bind:contentRect={bounds} style="width: 100%; height: 100%;"></canvas>

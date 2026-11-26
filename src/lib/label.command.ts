@@ -4,6 +4,7 @@ import type { ID, LabelData } from './label'
 import { encodePos } from './geometry.js'
 import type { Label } from './label'
 import type { CommandManager } from './command'
+import { v4 } from 'uuid'
 
 export class LabelManagerCommand<T extends Label> extends LabelManager<T> {
   command: CommandManager
@@ -23,21 +24,24 @@ export class LabelManagerCommand<T extends Label> extends LabelManager<T> {
   remove(id: string) {
     return this.command.execute({
       forward: () => super.remove(id),
-      backward: ({ hotkey, label }) => {
+      backward: ({ hotkeys, label }) => {
         this.labels[id] = label
-        if (hotkey) this.hotkeys[hotkey] = id
+        for (const key of hotkeys) this.hotkeys[key] = id
       },
     })
   }
   eraseArea(qube: Qube, id?: ID): Label[] {
+    return this.command.group(() => super.eraseArea(qube, id))
+  }
+  replaceTiles(id: ID, tiles: Label['tiles']): Label {
     return this.command.execute({
-      forward: () => super.eraseArea(qube, id),
-      backward: (labels) => labels.forEach((label) => (this.labels[label.id] = label)),
+      forward: () => super.replaceTiles(id, tiles),
+      backward: (original) => super.replaceTiles(id, original.tiles),
     })
   }
-  add(data: LabelData): T {
+  add(data: LabelData, id = v4()): T {
     return this.command.execute({
-      forward: () => super.add(data),
+      forward: () => super.add(data, id),
       backward: (label) => super.remove(label.id),
     })
   }

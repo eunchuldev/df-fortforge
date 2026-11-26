@@ -1,9 +1,0 @@
-.DS_Store
-node_modules
-/build
-/.svelte-kit
-/package
-/public
-/dist
-svelte.config.js
-vite.config.ts

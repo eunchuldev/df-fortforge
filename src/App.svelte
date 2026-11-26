@@ -1,6 +1,3 @@
-<style>
-</style>
-
 <script lang="ts">
   import Tilemap from './components/Tilemap.svelte'
 </script>

@@ -1,13 +1,14 @@
 <style lang="postcss">
+  @reference "tailwindcss";
+
   .code {
     @apply text-xs bg-slate-100 text-red-600 py-1 px-2 tracking-wide border rounded;
   }
 </style>
 
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte'
   import type { Volume } from '../lib/geometry'
-  import { version, supportDFVersion, build } from '../lib/constants.js'
+  import { version, supportDFVersion, build, Modals } from '../lib/constants.js'
   import { snakeCase } from 'change-case'
   import Modal from './Modal.svelte'
   import Icon from '@iconify/svelte/dist/OfflineIcon.svelte'
@@ -23,55 +24,66 @@
   import GithubIcon from '@iconify-icons/mdi/github'
   import AboutIcon from '@iconify-icons/mdi/information'
 
-  enum Modals {
-    None,
-    GenDFMacro,
-    ResizeTilemap,
-    ShowUsefulHotkeys,
-    DownloadFort,
-    About,
+  interface Props {
+    fortName?: string
+    tilemapVolume?: Volume
+    onGenerateMacro: (showMacro: (text: string) => void) => void
+    onAbandonFort: () => void
+    onResize: (volume: Volume) => void
+    onUploadFort: (data: string) => void
+    getFortData: () => string
+    onFortNameChange?: (name: string) => void
   }
 
-  interface TopNavEvent {
-    genDFMacro: typeof genDFMacro
-    abandonFort: null
-    resize: Volume
-    uploadFort: string
-    downloadFort: typeof downloadFort
-    changeFortName: string
-  }
+  let {
+    fortName = $bindable('Unnamed Fort'),
+    tilemapVolume = [100, 100, 100],
+    onGenerateMacro,
+    onAbandonFort,
+    onResize,
+    onUploadFort,
+    getFortData,
+    onFortNameChange,
+  }: Props = $props()
 
-  const dispatch = createEventDispatcher<TopNavEvent>()
-
-  export let tilemapVolume: Volume = [100, 100, 100]
-  export let fortName = 'Unnamed Fort'
-
-  let openedModal: Modals = Modals.None
-  let dfMacroText = ''
-  let downloadFortData = ''
+  let openedModal = $state(Modals.None)
+  let dfMacroText = $state('')
+  let downloadFortData = $state('')
+  let draftVolume = $state<Volume>([100, 100, 100])
 
   function uploadFort(e: Event & { currentTarget: EventTarget | HTMLInputElement }) {
     const reader = new FileReader()
     reader.onload = () => {
-      if (!reader.result) throw Error('fail to upload. file seems to be empty')
-      dispatch('uploadFort', reader.result.toString())
+      if (typeof reader.result !== 'string' || !reader.result)
+        throw Error('fail to upload. file seems to be empty')
+      onUploadFort(reader.result)
     }
     const target = <HTMLInputElement>e.currentTarget
     if (target.files === null) throw Error('fail to upload. file is null')
     reader.readAsText(target.files[0])
   }
 
-  function genDFMacro(_dfMacroText: string) {
+  function showMacro(text: string) {
     openedModal = Modals.GenDFMacro
-    dfMacroText = _dfMacroText
+    dfMacroText = text
   }
 
-  function downloadFort(data: string) {
+  function downloadFort() {
+    downloadFortData = getFortData()
     openedModal = Modals.DownloadFort
-    downloadFortData = data
+  }
+
+  function openResize() {
+    draftVolume = [...tilemapVolume]
+    openedModal = Modals.ResizeTilemap
+  }
+
+  function closeModal() {
+    openedModal = Modals.None
   }
 
   function blurOnEnterOrEscape(e: KeyboardEvent) {
+    e.stopPropagation()
     if (['Enter', 'Escape'].includes(e.key)) {
       ;(<HTMLInputElement>e.target).blur()
       return false
@@ -81,70 +93,66 @@
 
 <div
   id="topnav"
-  class="fixed top-0 left-0 bg-white flex items-center flex-nowrap opacity-50 hover:opacity-100 rounded-br-full shadow pr-4"
+  class="fixed top-0 left-0 bg-white flex items-center flex-nowrap opacity-50 hover:opacity-100 rounded-br-full shadow-sm pr-4"
 >
   <label class="p-1 h-12" for="fort-name">
-    <Icon icon="{FortIcon}" inline="{true}" height="2.5em" />
+    <Icon icon={FortIcon} inline={true} height="2.5em" />
   </label>
   <input
     class="rounded pl-4 self-stretch focus:pl-3 text-slate-500 focus:text-black focus:tracking-normal tracking-wide"
     id="fort-name"
-    bind:value="{fortName}"
-    on:change="{() => dispatch('changeFortName', fortName)}"
-    on:keydown|stopPropagation="{blurOnEnterOrEscape}"
+    bind:value={fortName}
+    onchange={() => onFortNameChange?.(fortName)}
+    onkeydown={blurOnEnterOrEscape}
   />
   <button
     id="gen-macro-btn"
     class="flex items-center rounded-full px-3 h-8 hover:bg-slate-200"
-    on:click="{() => dispatch('genDFMacro', genDFMacro)}"
+    onclick={() => onGenerateMacro(showMacro)}
   >
-    <Icon icon="{GenMacroIcon}" inline="{true}" />
+    <Icon icon={GenMacroIcon} inline={true} />
     <span class="mx-1">gen macro</span>
-    <Icon icon="{GenMacroIcon}" inline="{true}" />
+    <Icon icon={GenMacroIcon} inline={true} />
   </button>
   <button
     class="flex items-center rounded-full px-3 h-8 hover:bg-slate-200"
-    on:click="{() => dispatch('abandonFort')}"
+    onclick={onAbandonFort}
   >
-    <Icon icon="{AbandonIcon}" inline="{true}" />
+    <Icon icon={AbandonIcon} inline={true} />
     <span>abandon fort</span>
-    <Icon icon="{AbandonIcon}" inline="{true}" />
+    <Icon icon={AbandonIcon} inline={true} />
   </button>
 
   <Dropdown>
-    <button
-      slot="head"
-      class="hover:bg-slate-200 rounded-full w-8 h-8 text-center flex items-center justify-center mr-4"
-    >
-      <Icon icon="{MoreIcon}" width="1.5em" inline="{true}" />
-    </button>
-    <button
-      class="text-left py-1 px-2 hover:bg-slate-200 flex items-center"
-      on:click="{() => dispatch('downloadFort', downloadFort)}"
-    >
-      <Icon icon="{SaveAsIcon}" inline="{true}" />
+    {#snippet head()}
+      <span
+        class="hover:bg-slate-200 rounded-full w-8 h-8 text-center flex items-center justify-center mr-4"
+      >
+        <Icon icon={MoreIcon} width="1.5em" inline={true} />
+        <span class="sr-only">More options</span>
+      </span>
+    {/snippet}
+    <button class="text-left py-1 px-2 hover:bg-slate-200 flex items-center" onclick={downloadFort}>
+      <Icon icon={SaveAsIcon} inline={true} />
       <span class="ml-1"> save to desktop</span>
     </button>
-    <input type="file" class="hidden" id="upload-fort" on:change="{uploadFort}" accept=".dffort" />
+    <input type="file" class="hidden" id="upload-fort" onchange={uploadFort} accept=".dffort" />
     <label
       for="upload-fort"
       class="text-left py-1 px-2 hover:bg-slate-200 flex items-center cursor-pointer"
     >
-      <Icon icon="{UploadIcon}" inline="{true}" />
+      <Icon icon={UploadIcon} inline={true} />
       <span class="ml-1"> upload from destktop </span>
     </label>
-    <button
-      class="text-left py-1 px-2 hover:bg-slate-200 flex items-center"
-      on:click="{() => (openedModal = Modals.ResizeTilemap)}"
-    >
-      <Icon icon="{ResizeIcon}" inline="{true}" />
+    <button class="text-left py-1 px-2 hover:bg-slate-200 flex items-center" onclick={openResize}>
+      <Icon icon={ResizeIcon} inline={true} />
       <span class="ml-1"> resize tilemap </span>
     </button>
     <button
       class="text-left py-1 px-2 hover:bg-slate-200 flex items-center"
-      on:click="{() => (openedModal = Modals.ShowUsefulHotkeys)}"
+      onclick={() => (openedModal = Modals.ShowUsefulHotkeys)}
     >
-      <Icon icon="{HotkeysIcon}" inline="{true}" />
+      <Icon icon={HotkeysIcon} inline={true} />
       <span class="ml-1"> show useful hotkeys </span>
     </button>
 
@@ -152,33 +160,36 @@
       class="text-left py-1 px-2 hover:bg-slate-200 flex items-center"
       href="https://github.com/eunchuldev/df-fortforge"
     >
-      <Icon icon="{GithubIcon}" inline="{true}" />
+      <Icon icon={GithubIcon} inline={true} />
       <span class="ml-1"> visit repo </span>
     </a>
 
     <button
       class="text-left py-1 px-2 hover:bg-slate-200 flex items-center"
-      on:click="{() => (openedModal = Modals.About)}"
+      onclick={() => (openedModal = Modals.About)}
     >
-      <Icon icon="{AboutIcon}" inline="{true}" />
+      <Icon icon={AboutIcon} inline={true} />
       <span class="ml-1"> about </span>
     </button>
   </Dropdown>
 </div>
 
 {#if openedModal === Modals.GenDFMacro}
-  <Modal on:close="{() => (openedModal = Modals.None)}">
+  <Modal onclose={closeModal}>
     <div class="m-4">
-      <h3 class="text-lg mb-6">Your macro is ready!</h3>
+      <h3 class="text-lg mb-2">Your macro is ready!</h3>
+      <p class="mb-4 text-sm">
+        The macro contains mining designations. Buildings are saved in your fort plan.
+      </p>
       <ol class="list-decimal list-inside [&>li]:mt-4">
         <li>
           Click the link below to download the macro
           <a
             class="px-2 py-1 flex items-center border rounded-full inline-block w-fit bg-slate-200 hover:bg-slate-300"
-            href="{window.URL.createObjectURL(new Blob([dfMacroText], { type: 'plain/text' }))}"
+            href={window.URL.createObjectURL(new Blob([dfMacroText], { type: 'plain/text' }))}
             download="{snakeCase(fortName)}.mak"
           >
-            <Icon icon="{SaveAsIcon}" inline="{true}" />
+            <Icon icon={SaveAsIcon} inline={true} />
             <span class="ml-1"> {snakeCase(fortName)}.mak </span>
           </a>
           <span class="text-xs">
@@ -208,7 +219,7 @@
         </li>
       </ol>
       <button
-        on:click="{() => (openedModal = Modals.None)}"
+        onclick={closeModal}
         class="p-2 px-4 rounded mt-8 bg-slate-200 hover:bg-slate-300 active:bg-slate-200"
       >
         Done
@@ -216,7 +227,7 @@
     </div>
   </Modal>
 {:else if openedModal === Modals.ResizeTilemap}
-  <Modal on:close="{() => (openedModal = Modals.None)}">
+  <Modal onclose={closeModal}>
     <div class="m-4">
       <h3 class="text-lg mb-6">Resize Tile Map</h3>
       <div>
@@ -228,7 +239,7 @@
           min="1"
           max="1000"
           id="resize-x"
-          bind:value="{tilemapVolume[0]}"
+          bind:value={draftVolume[0]}
         />
       </div>
       <div class="mt-2">
@@ -240,11 +251,11 @@
           min="1"
           max="1000"
           id="resize-y"
-          bind:value="{tilemapVolume[1]}"
+          bind:value={draftVolume[1]}
         />
       </div>
       <div class="mt-2">
-        <label for="resize-z" class="block text-sm"> depth </label>
+        <label for="resize-z" class="block text-sm"> floors above and below 0F </label>
         <input
           class="border p-2"
           type="number"
@@ -252,37 +263,37 @@
           min="1"
           max="1000"
           id="resize-z"
-          bind:value="{tilemapVolume[2]}"
+          bind:value={draftVolume[2]}
         />
       </div>
       <div class="italic text-red-500 mt-8">Warning: Too high volume can cause errors</div>
       <button
         class="p-2 px-4 rounded mt-8 bg-slate-200 hover:bg-slate-300 active:bg-slate-200"
-        on:click="{() => {
-          dispatch('resize', tilemapVolume)
-          openedModal = Modals.None
-        }}"
+        onclick={() => {
+          onResize([...draftVolume])
+          closeModal()
+        }}
       >
         Apply
       </button>
     </div>
   </Modal>
 {:else if openedModal === Modals.DownloadFort}
-  <Modal on:close="{() => (openedModal = Modals.None)}">
+  <Modal onclose={closeModal}>
     <div class="m-4">
       <a
         class="px-2 py-1 flex items-center border rounded-full inline-block w-fit bg-slate-200 hover:bg-slate-300"
-        href="{window.URL.createObjectURL(new Blob([downloadFortData], { type: 'plain/text' }))}"
+        href={window.URL.createObjectURL(new Blob([downloadFortData], { type: 'plain/text' }))}
         download="{snakeCase(fortName)}.dffort"
-        on:click="{() => (openedModal = Modals.None)}"
+        onclick={closeModal}
       >
-        <Icon icon="{SaveAsIcon}" inline="{true}" />
+        <Icon icon={SaveAsIcon} inline={true} />
         <span class="ml-1"> {snakeCase(fortName)}.dffort </span>
       </a>
     </div>
   </Modal>
 {:else if openedModal === Modals.ShowUsefulHotkeys}
-  <Modal on:close="{() => (openedModal = Modals.None)}">
+  <Modal onclose={closeModal}>
     <div class="m-4">
       <h3 class="text-lg mb-6">Hotkey Cheatsheet</h3>
       <table class="table-auto w-full text-left [&_tr]:border-b [&_th]:p-2 [&_td]:p-2 leading-8">
@@ -345,6 +356,43 @@
             </td>
           </tr>
           <tr>
+            <td>Write a tile character</td>
+            <td>
+              With no tool selected, double-click a tile or press <span class="code">Enter</span>,
+              then type one character.
+            </td>
+          </tr>
+          <tr>
+            <td>Clear the character under the cursor</td>
+            <td>
+              With no tool selected, press <span class="code">Delete</span> or
+              <span class="code">Backspace</span>.
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2" class="bg-slate-100 px-2 font-bold text-center"> Build </td>
+          </tr>
+          <tr>
+            <td>Open Build</td>
+            <td><span class="code">b</span> from the main toolbar</td>
+          </tr>
+          <tr>
+            <td>Choose a building</td>
+            <td>Use the keys shown in each menu. Uppercase letters use Shift.</td>
+          </tr>
+          <tr>
+            <td>Place or mark a corner</td>
+            <td>Click or <span class="code">Enter</span></td>
+          </tr>
+          <tr>
+            <td>Cancel a corner or go back</td>
+            <td>Right-click</td>
+          </tr>
+          <tr>
+            <td>Close Build from any level</td>
+            <td><span class="code">Esc</span></td>
+          </tr>
+          <tr>
             <td colspan="2" class="bg-slate-100 px-2 font-bold text-center"> Selection </td>
           </tr>
           <tr>
@@ -366,14 +414,14 @@
       </table>
       <button
         class="p-2 px-4 rounded mt-8 bg-slate-200 hover:bg-slate-300 active:bg-slate-200"
-        on:click="{() => (openedModal = Modals.None)}"
+        onclick={closeModal}
       >
         Close
       </button>
     </div>
   </Modal>
 {:else if openedModal === Modals.About}
-  <Modal on:close="{() => (openedModal = Modals.None)}">
+  <Modal onclose={closeModal}>
     <div class="m-4">
       <h1 class="text-2xl block mt-4 mb-8">About</h1>
       <table class="auto w-full [&_td]:p-2 [&_td]:border-t">
@@ -410,7 +458,7 @@
       </table>
       <button
         class="p-2 px-4 rounded mt-8 bg-slate-200 hover:bg-slate-300 active:bg-slate-200"
-        on:click="{() => (openedModal = Modals.None)}"
+        onclick={closeModal}
       >
         Close
       </button>

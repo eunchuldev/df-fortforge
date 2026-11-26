@@ -59,17 +59,17 @@ export function decomposeIntoQubes<T>({
 }: DecomposeIntoQubesOptions<T>): Cover<T>[] {
   let cover: Cover<T> | null = null
   const covers: Cover<T>[] = []
-  const done = new Set()
+  const done = new Set<string>()
   for (let x = qube[0]; x <= qube[0] + qube[3]; ++x) {
     for (let y = qube[1]; y <= qube[1] + qube[4]; ++y) {
       for (let z = qube[2]; z <= qube[2] + qube[5]; ++z) {
         const pos: Pos = [x, y, z]
         const tile = getTile(pos)
 
-        if (tile === emptyTile) done.add(encodePos(pos))
-
-        if (done.has(encodePos(pos))) continue
-        done.add(encodePos(pos))
+        if (tile === emptyTile) continue
+        const key = encodePos(pos)
+        if (done.has(key)) continue
+        done.add(key)
         cover = { tile, qube: [...pos, 0, 0, 0] }
 
         let expanding = true
@@ -106,11 +106,9 @@ export function decomposeIntoQubes<T>({
                   pos[n] = i
                   pos[(n + 1) % 3] = j
                   pos[(n + 2) % 3] = k
-                  const neighborTile = getTile(pos)
-                  if (!inQube(pos, qube) || done.has(encodePos(pos)) || neighborTile !== tile) {
+                  if (!inQube(pos, qube) || done.has(encodePos(pos)) || getTile(pos) !== tile) {
                     expandable = false
-                  }
-                  if (
+                  } else if (
                     n !== 2 &&
                     preferVerticalQube &&
                     (getTile([pos[0], pos[1], pos[2] - 1]) === tile ||
@@ -202,9 +200,8 @@ function _solveHSPBnB(
           shouldReturn,
           best
         )
+        visited[i] = false
       }
-      visited.fill(false)
-      for (let j = 0; j < level; ++j) if (path[j] !== -1) visited[path[j]] = true
     }
   }
 }
@@ -218,22 +215,18 @@ export function solveHSPBnB(adj: number[][], source = 0, shouldReturn = false) {
     weight: Infinity,
     path: Array(V).fill(-1) as number[],
   }
-  for (let i = 0; i < V; ++i)
-    bound += [...adj[i]]
-      .sort()
-      .slice(0, 2)
-      .reduce((agg, i) => agg + i)
+  const sortedAdj = adj.map((row) => [...row].sort())
+  for (const row of sortedAdj) bound += row.slice(0, 2).reduce((agg, i) => agg + i)
   bound = Math.ceil(bound * 0.5)
   visited[source] = true
   path[0] = source
-  const sortedAdj: number[][] = adj.map((row) => [...row].sort())
   _solveHSPBnB(sortedAdj, adj, V, bound, 0, 1, path, visited, shouldReturn, best)
   return best.path
 }
 
 export function solveHSPOpt2(adj: number[][], source = 0, shouldReturn = false) {
   const V = adj.length
-  let path = [...Array(V).keys()]
+  const path = [...Array(V).keys()]
     .map((v) => [v, Math.random()])
     .sort((a, b) => a[1] - b[1])
     .map((a) => a[0])
@@ -252,11 +245,11 @@ export function solveHSPOpt2(adj: number[][], source = 0, shouldReturn = false) 
           adj[path[i]][path[(i + 1) % V]] +
             (j + 1 < V || shouldReturn ? adj[path[j]][path[(j + 1) % V]] : 0)
         ) {
-          path = [
-            ...path.slice(0, i + 1),
-            ...path.slice(i + 1, j + 1).reverse(),
-            ...path.slice(j + 1, V),
-          ]
+          for (let left = i + 1, right = j; left < right; ++left, --right) {
+            const previous = path[left]
+            path[left] = path[right]
+            path[right] = previous
+          }
           swapped = true
         }
       }

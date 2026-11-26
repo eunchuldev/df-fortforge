@@ -5,3 +5,4 @@ node_modules
 /package
 /dist
 src/lib/sdk/generated
+pnpm-lock.yaml

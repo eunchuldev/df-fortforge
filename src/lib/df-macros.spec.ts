@@ -2,6 +2,20 @@ import { test, expect } from 'vitest'
 import { Tilemap } from './tilemap.js'
 import { genMacro } from './df-macros.js'
 
+test('stair export crosses 0F and stops at the top floor', () => {
+  const tilemap = new Tilemap([1, 1, 1])
+  tilemap.stairs([0, 0, -1, 0, 0, 2])
+  const tileAt = tilemap.tileAt.bind(tilemap)
+  tilemap.tileAt = (pos) => {
+    expect(Math.abs(pos[2])).toBeLessThanOrEqual(1)
+    return tileAt(pos)
+  }
+
+  const macro = genMacro('stairs', tilemap, [0, 0, -1])
+  expect(macro).toContain('DESIGNATE_STAIR_UPDOWN')
+  expect(macro.match(/CURSOR_DOWN_Z/g)).toHaveLength(2)
+})
+
 test('genMacros', () => {
   const tilemap = new Tilemap()
 

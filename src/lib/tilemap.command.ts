@@ -2,7 +2,6 @@ import type { CommandManager } from './command'
 import { Tilemap } from './tilemap.js'
 import type { TilePiece } from './tilemap.js'
 import type { Volume, Qube, Pos, Pos2d } from './geometry'
-import { subPos, rotate2d } from './geometry.js'
 
 export class TilemapCommand extends Tilemap {
   commandManager: CommandManager
@@ -57,73 +56,22 @@ export class TilemapCommand extends Tilemap {
   removeDots(dots: Pos[]): TilePiece[] {
     return this.commandManager.execute({
       forward: () => super.removeDots(dots),
-      backward: (lastTiles) => {
-        lastTiles.forEach(({ tile, pos }) => this.dot(tile, pos))
-      },
+      backward: (lastTiles) => super.putTiles(lastTiles.toReversed()),
     })
   }
   putTiles(tiles: TilePiece[]): TilePiece[] {
     return this.commandManager.execute({
       forward: () => super.putTiles(tiles),
-      backward: (lastTiles) => {
-        lastTiles.forEach(({ tile, pos }) => this.dot(tile, pos))
-      },
+      backward: (lastTiles) => super.putTiles(lastTiles.toReversed()),
     })
   }
   translate(tiles: Pos[], vector: Pos, ignoreBackground = false): TilePiece[] {
-    return this.commandManager.execute({
-      forward: () => super.translate(tiles, vector, ignoreBackground),
-      backward: (tiles) => {
-        tiles
-          .map(({ tile, pos }) => ({
-            pos: subPos(pos, vector),
-            tile: this.dot(tile, pos),
-          }))
-          .map(({ tile, pos }) => this.dot(tile, pos))
-      },
-    })
+    return this.commandManager.group(() => super.translate(tiles, vector, ignoreBackground))
   }
-  rotate2d(
-    tiles: Pos[],
-    ccw = false,
-    pivot?: [number, number]
-  ): { pivot: [number, number]; tiles: TilePiece[] } {
-    return this.commandManager.execute({
-      forward: () => super.rotate2d(tiles, ccw, pivot),
-      backward: ({ pivot, tiles }) => {
-        tiles
-          .map(({ tile, pos }) => ({
-            pos: <Pos>(
-              [
-                ...rotate2d(<Pos2d>pos.slice(0, 2), pivot, (ccw ? -1 : 1) * Math.PI * 0.5),
-                pos[2],
-              ].map(Math.round)
-            ),
-            tile: this.dot(tile, pos),
-          }))
-          .map(({ tile, pos }) => this.dot(tile, pos))
-      },
-    })
+  rotate2d(tiles: Pos[], ccw = false, pivot?: Pos2d) {
+    return this.commandManager.group(() => super.rotate2d(tiles, ccw, pivot))
   }
-  flip2d(
-    tiles: Pos[],
-    vertical = false,
-    pivot?: [number, number]
-  ): { pivot: [number, number]; tiles: TilePiece[] } {
-    return this.commandManager.execute({
-      forward: () => super.flip2d(tiles, vertical, pivot),
-      backward: ({ pivot, tiles }) => {
-        tiles
-          .map(({ tile, pos }) => ({
-            pos: <Pos>(
-              (vertical
-                ? [pos[0], pivot[1] * 2 - pos[1], pos[2]]
-                : [pivot[0] * 2 - pos[0], pos[1], pos[2]])
-            ),
-            tile: this.dot(tile, pos),
-          }))
-          .map(({ tile, pos }) => this.dot(tile, pos))
-      },
-    })
+  flip2d(tiles: Pos[], vertical = false, pivot?: Pos2d) {
+    return this.commandManager.group(() => super.flip2d(tiles, vertical, pivot))
   }
 }
