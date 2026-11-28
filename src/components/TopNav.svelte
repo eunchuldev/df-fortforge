@@ -370,6 +370,13 @@
             </td>
           </tr>
           <tr>
+            <td>Write a post-it memo</td>
+            <td>
+              With no tool selected, press <span class="code">p</span>, then click a tile or press
+              <span class="code">Enter</span>. Click its yellow marker to reopen the memo.
+            </td>
+          </tr>
+          <tr>
             <td colspan="2" class="bg-slate-100 px-2 font-bold text-center"> Build </td>
           </tr>
           <tr>

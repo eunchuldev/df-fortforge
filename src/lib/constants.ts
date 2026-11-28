@@ -25,6 +25,7 @@ export enum Action {
 
   Select,
   Character,
+  Memo,
 }
 
 export enum DrawMode {

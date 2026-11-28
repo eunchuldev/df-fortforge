@@ -51,6 +51,7 @@
   } from '../lib/buildings.js'
   import { SimpleLabelManagerCommand } from '../lib/simple-label.command.js'
   import TopNav from './TopNav.svelte'
+  import MemoEditor from './MemoEditor.svelte'
   import { Tile, tileToString } from '../lib/tilemap.js'
   import { TilemapCommand } from '../lib/tilemap.command.js'
   import { hotkey } from '../lib/hotkey.js'
@@ -90,6 +91,7 @@
   import RedoIcon from '@iconify-icons/mdi/redo'
   import LabelIcon from '@iconify-icons/mdi/label'
   import CharacterIcon from '@iconify-icons/mdi/format-text'
+  import MemoIcon from '@iconify-icons/mdi/note-text'
   import DeleteIcon from '@iconify-icons/mdi/delete-outline'
   import DeleteForeverIcon from '@iconify-icons/mdi/delete-forever-outline'
   import CloseIcon from '@iconify-icons/mdi/close'
@@ -102,6 +104,7 @@
   import {
     clampPos,
     clampQube,
+    collision,
     encodePos,
     getBoundary,
     qubeIter,
@@ -148,6 +151,7 @@
   })
   const activeAction = $derived(action.level2 ?? action.level1)
   let characterCell = $state.raw<Pos | null>(null)
+  let memoCell = $state.raw<Pos | null>(null)
   let characterKey: string | undefined
   const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
   const canGrabEither = $derived(
@@ -158,6 +162,7 @@
 
   function selectAction(primary: Action | null, secondary: Action | null = null) {
     characterCell = null
+    memoCell = null
     endDrag(false)
     if (primary === Action.Build || action.level1 === Action.Build) {
       setBuildPath([BUILD_MENU])
@@ -168,6 +173,10 @@
     if (primary === Action.Character) {
       action.drawRectStage = DrawRectStage.StandBy
       startCharacterEdit(cursor)
+    } else if (primary === Action.Memo) {
+      action.drawRectStage = DrawRectStage.StandBy
+      focusedId = null
+      mapElement.focus({ preventScroll: true })
     }
   }
 
@@ -242,6 +251,25 @@
   const dragOffset = $derived<Pos>(
     move && drag?.contents.positions.length ? move.offset : [0, 0, 0]
   )
+  const canOpenMemo = $derived(
+    !drag && !characterCell && (!activeAction || activeAction === Action.Memo)
+  )
+  const memoSize = $derived(Math.min(24, Math.ceil(tileWidth * 0.6)))
+  const draggedCells = $derived(new Set(drag?.contents.positions.map(encodePos)))
+  const visibleMemos = $derived.by(() => {
+    const visible = []
+    for (const cell of tilemap.getMemos()) {
+      let pos = cell.pos
+      if (move && draggedCells.size) {
+        if (draggedCells.has(encodePos(pos))) pos = sumPos(pos, move.offset)
+        else if (draggedCells.has(encodePos(subPos(pos, move.offset)))) continue
+      }
+      if (pos[2] === screenQube[2] && collision(screenQube, [...pos, 0, 0, 0])) {
+        visible.push({ pos, memo: cell.memo })
+      }
+    }
+    return visible
+  })
   const visibleBuildings = $derived(
     buildingManager.labelsIntersectsWith(screenQube, move?.workshops)
   )
@@ -321,6 +349,7 @@
         if (label.hotkey) labelManager.hotkeys[label.hotkey] = label.id
       })
     }
+    commandManager.clear()
   }
 
   function encryptState(): string {
@@ -420,6 +449,11 @@
       startCharacterEdit(pos)
       return
     }
+    if (activeAction === Action.Memo) {
+      e.preventDefault()
+      openMemo(pos)
+      return
+    }
     if (characterCell) closeCharacterEdit()
     cursorAt(...pos)
     shiftKey = e.shiftKey
@@ -472,15 +506,21 @@
     if (focusMap) mapElement.focus({ preventScroll: true })
   }
 
-  function setCharacter(pos: Pos, character?: string) {
-    if (character !== tilemap.characterAt(pos)) {
-      tilemap.putTiles([{ pos: [...pos], tile: tilemap.tileAt(pos), character }])
-    }
+  function openMemo(pos: Pos) {
+    if (!inBounds(pos, tilemap.volume)) return
+    focusedId = null
+    cursorAt(...pos)
+    updateScreenQube()
+    memoCell = [...pos]
   }
 
   function writeCharacter(text: string) {
     if (!characterCell) return
-    setCharacter(characterCell, graphemes.segment(text).containing(0)?.segment)
+    tilemap.setAnnotation(
+      characterCell,
+      'character',
+      graphemes.segment(text).containing(0)?.segment
+    )
     closeCharacterEdit()
   }
 
@@ -786,7 +826,9 @@
         panBy([-panStep, 0, 0])
         break
       case 'Enter':
-        if (canEditCharacter) {
+        if (activeAction === Action.Memo) {
+          if (!e.repeat) openMemo(cursor)
+        } else if (canEditCharacter) {
           if (!e.repeat && !e.altKey && !e.metaKey) startCharacterEdit(cursor)
         } else if (!building || !e.repeat) execute()
         break
@@ -802,7 +844,7 @@
           e.isComposing
         )
           return
-        if (!e.repeat) setCharacter(cursor)
+        if (!e.repeat) tilemap.setAnnotation(cursor, 'character')
         break
       case 'Escape':
         if (action.level1 === Action.Build) selectAction(null)
@@ -1346,6 +1388,27 @@
       {/each}
     {/if}
 
+    {#each visibleMemos as { pos, memo } (encodePos(pos))}
+      <foreignObject
+        x={(pos[0] - screenQube[0] + 1) * tileWidth - memoSize}
+        y={(pos[1] - screenQube[1]) * tileWidth}
+        width={memoSize}
+        height={memoSize}
+        pointer-events={canOpenMemo ? 'auto' : 'none'}
+      >
+        <button
+          class="grid h-full w-full place-items-center rounded-sm border border-amber-900 bg-amber-200 text-amber-950 hover:bg-amber-100 focus-visible:-outline-offset-2"
+          aria-label="Edit memo at {pos[0]}, {pos[1]}, {-pos[2]}F"
+          title={memo}
+          disabled={!canOpenMemo}
+          onpointerdown={(e) => e.stopPropagation()}
+          onclick={() => openMemo(pos)}
+        >
+          <Icon icon={MemoIcon} width="100%" height="100%" />
+        </button>
+      </foreignObject>
+    {/each}
+
     {#if action.level2 && [Action.PickGFMacroStartPoint, Action.PickLabelOfHotkey].includes(action.level2)}
       <rect
         x={(cursor[0] - screenQube[0]) * tileWidth}
@@ -1396,6 +1459,19 @@
     />
   {/if}
 </div>
+
+{#if memoCell}
+  {@const pos = memoCell}
+  <MemoEditor
+    {pos}
+    memo={tilemap.memoAt(pos)}
+    onSave={(memo?: string) => tilemap.setAnnotation(pos, 'memo', memo)}
+    onClose={() => {
+      memoCell = null
+      mapElement.focus({ preventScroll: true })
+    }}
+  />
+{/if}
 
 {#if focusLabel && !move}
   <div
@@ -1540,6 +1616,11 @@
   />
 {/if}
 <div id="actionbox" class="fixed bottom-0 m-8 flex flex-col">
+  {#if activeAction === Action.Memo && !memoCell}
+    <p class="mb-1 w-fit rounded bg-amber-100 px-2 py-1 text-xs text-stone-900">
+      Click a tile or press Enter to write a memo.
+    </p>
+  {/if}
   <div id="actionbox-level2" class="flex [&>*]:m-0.5">
     {#if action.level1 === Action.Label}
       <div>
@@ -1658,7 +1739,7 @@
       <div>
         <button
           id="action-copy-selection"
-          title="Copy selected tiles, characters, label areas, and buildings"
+          title="Copy selected tiles, characters, memos, label areas, and buildings"
           onclick={() => copy(false)}
           {@attach hotkey('Control+c')}
         >
@@ -1669,7 +1750,7 @@
       <div>
         <button
           id="action-cut-selection"
-          title="Cut selected tiles, characters, label areas, and buildings"
+          title="Cut selected tiles, characters, memos, label areas, and buildings"
           onclick={() => copy(true)}
           {@attach hotkey('Control+x')}
         >
@@ -1769,7 +1850,7 @@
     </div>
   </div>
 
-  <div id="actionbox-level1" class="flex [&>*]:m-0.5">
+  <div id="actionbox-level1" class="flex flex-wrap [&>*]:m-0.5">
     <div>
       <input
         id="action-designate-mine"
@@ -1862,6 +1943,20 @@
       >
         <Icon icon={CharacterIcon} height="1.5em" />
         {#if canEditCharacter}<span class="hotkey">Enter</span>{/if}
+      </button>
+    </div>
+
+    <div class="pl-4">
+      <button
+        id="action-memo"
+        aria-label="Post-it memo"
+        aria-pressed={activeAction === Action.Memo}
+        title="Post-it memo · Click a tile or press Enter"
+        onclick={() => selectAction(activeAction === Action.Memo ? null : Action.Memo)}
+        {@attach hotkey(action.level1 === null ? 'p' : null)}
+      >
+        <Icon icon={MemoIcon} height="1.5em" />
+        {#if action.level1 === null}<span class="hotkey">p</span>{/if}
       </button>
     </div>
 

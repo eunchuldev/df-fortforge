@@ -61,6 +61,7 @@ export interface TilePiece {
   tile: Tile
   pos: Pos
   character?: string
+  memo?: string
 }
 
 interface CharacterCell {
@@ -68,9 +69,15 @@ interface CharacterCell {
   character: string
 }
 
+interface MemoCell {
+  pos: Pos
+  memo: string
+}
+
 interface TilemapState {
   tilePieces: TilePiece[]
   characters?: CharacterCell[]
+  memos?: MemoCell[]
   volume: Volume
   defaultTile: Tile
   boundingQube: Qube
@@ -87,6 +94,7 @@ export class Tilemap {
   })
   map: Tile[] = []
   private characters = new SvelteMap<string, CharacterCell>()
+  private memos = new SvelteMap<string, MemoCell>()
   volume = $state.raw<Volume>([0, 0, 0])
   defaultTile = $state(Tile.Wall)
   boundingQube = $state.raw<Qube>([
@@ -124,7 +132,12 @@ export class Tilemap {
     return ((z + floorLimit) * height + y) * width + x
   }
 
-  private loadTiles(volume: Volume, pieces: TilePiece[], characters: CharacterCell[] = []) {
+  private loadTiles(
+    volume: Volume,
+    pieces: TilePiece[],
+    characters: CharacterCell[] = [],
+    memos: MemoCell[] = []
+  ) {
     const [width, height, floorLimit] = volume
     this.map = new Array<Tile>(width * height * (2 * floorLimit + 1)).fill(this.defaultTile)
     this.volume = volume
@@ -135,12 +148,30 @@ export class Tilemap {
     for (const cell of characters) {
       if (inBounds(cell.pos, volume)) this.characters.set(encodePos(cell.pos), cell)
     }
+    this.memos.clear()
+    for (const cell of memos) {
+      if (
+        typeof cell?.memo === 'string' &&
+        cell.memo.trim() &&
+        Array.isArray(cell.pos) &&
+        cell.pos.length === 3 &&
+        cell.pos.every(Number.isInteger) &&
+        inBounds(cell.pos, volume)
+      ) {
+        this.memos.set(encodePos(cell.pos), cell)
+      }
+    }
     this.#cellsChanged?.()
   }
 
   resize(volume: Volume) {
     const bounds = clampQube(this.boundingQube, volumeBounds(volume))
-    this.loadTiles(volume, this.tiles(bounds), [...this.characters.values()])
+    this.loadTiles(
+      volume,
+      this.tiles(bounds),
+      [...this.characters.values()],
+      [...this.memos.values()]
+    )
     this.boundingQube = bounds
   }
 
@@ -157,10 +188,25 @@ export class Tilemap {
     return [...this.characters.values()].filter(({ pos }) => collision(qube, [...pos, 0, 0, 0]))
   }
 
+  memoAt(pos: Pos): string | undefined {
+    return this.memos.get(encodePos(pos))?.memo
+  }
+
+  getMemos() {
+    return this.memos.values()
+  }
+
+  setAnnotation(pos: Pos, field: 'character' | 'memo', text?: string) {
+    if (!inBounds(pos, this.volume)) return
+    const piece = this.pieceAt([...pos])
+    if (piece[field] !== text) this.putTiles([{ ...piece, [field]: text }])
+  }
+
   serialize(): string {
     const state: TilemapState = {
       tilePieces: this.tiles(this.boundingQube),
       characters: [...this.characters.values()],
+      memos: [...this.memos.values()],
       volume: this.volume,
       defaultTile: this.defaultTile,
       boundingQube: this.boundingQube,
@@ -171,7 +217,12 @@ export class Tilemap {
     const state: TilemapState = JSON.parse(code) as TilemapState
     this.defaultTile = state.defaultTile
     this.boundingQube = state.boundingQube
-    this.loadTiles(state.volume, state.tilePieces, state.characters)
+    this.loadTiles(
+      state.volume,
+      state.tilePieces,
+      state.characters,
+      Array.isArray(state.memos) ? state.memos : []
+    )
   }
 
   protected dot(tile: Tile, pos: Pos): Tile {
@@ -253,21 +304,37 @@ export class Tilemap {
     return this.fill(this.defaultTile, qube)
   }
 
-  private replaceTile({ pos, tile, character }: TilePiece): TilePiece {
+  private pieceAt(pos: Pos): TilePiece {
     const key = encodePos(pos)
-    const previous = this.characters.get(key)?.character
-    if (character !== previous && inBounds(pos, this.volume)) {
+    return {
+      pos,
+      tile: this.tileAt(pos),
+      character: this.characters.get(key)?.character,
+      memo: this.memos.get(key)?.memo,
+    }
+  }
+
+  private replaceTile({ pos, tile, character, memo }: TilePiece): TilePiece {
+    const previous = this.pieceAt(pos)
+    if (!inBounds(pos, this.volume)) return previous
+    const key = encodePos(pos)
+    if (character !== previous.character) {
       if (character) this.characters.set(key, { pos: [...pos], character })
       else this.characters.delete(key)
     }
-    return { pos, tile: this.dot(tile, pos), character: previous }
+    if (memo !== previous.memo) {
+      if (memo) this.memos.set(key, { pos: [...pos], memo })
+      else this.memos.delete(key)
+    }
+    this.dot(tile, pos)
+    return previous
   }
 
   removeDots(dots: Pos[]): TilePiece[] {
     return dots.map((pos) => this.replaceTile({ pos, tile: this.defaultTile }))
   }
   tilesAt(dots: Pos[]): TilePiece[] {
-    return dots.map((pos) => ({ pos, tile: this.tileAt(pos), character: this.characterAt(pos) }))
+    return dots.map((pos) => this.pieceAt(pos))
   }
   putTiles(tiles: TilePiece[]): TilePiece[] {
     return tiles.map((tile) => this.replaceTile(tile))
@@ -283,7 +350,10 @@ export class Tilemap {
   }
   translate(tiles: Pos[], vector: Pos, ignoreBackground = false): TilePiece[] {
     const positions = ignoreBackground
-      ? tiles.filter((pos) => this.tileAt(pos) !== this.defaultTile || this.characterAt(pos))
+      ? tiles.filter(
+          (pos) =>
+            this.tileAt(pos) !== this.defaultTile || this.characterAt(pos) || this.memoAt(pos)
+        )
       : tiles
     return this.moveTiles(positions, (pos) => sumPos(pos, vector))
   }

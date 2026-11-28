@@ -126,6 +126,80 @@ test('the Character toolbar button edits the cursor tile and idle erase keys cle
   }
 })
 
+test('post-it memos reopen on their tile after reload and support editing, cancellation, and undo', async () => {
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(320)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(320)
+  localStorage.removeItem('state')
+  let editor = mount(Tilemap, { target: document.body })
+  const editorText = () => document.querySelector<HTMLTextAreaElement>('#memo-text')!
+  const pin = () => document.querySelector('button[aria-label^="Edit memo at"]')
+  const button = (selector: string) => document.querySelector<HTMLButtonElement>(selector)!
+  function write(text: string) {
+    editorText().value = text
+    editorText().dispatchEvent(new Event('input', { bubbles: true }))
+    flushSync()
+  }
+  function click(target: Element) {
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    flushSync()
+  }
+
+  try {
+    flushSync()
+    const map = document.querySelector<SVGSVGElement>('svg[role="application"]')!
+    vi.spyOn(map, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 320, 320))
+    press('p')
+    map.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, isPrimary: true, clientX: 80, clientY: 145 })
+    )
+    flushSync()
+    expect(document.activeElement).toBe(editorText())
+    expect(button('button[value="save"]').disabled).toBe(true)
+    press('m')
+    expect(button('#action-memo').getAttribute('aria-pressed')).toBe('true')
+    const memo = 'Dining hall\nLeave room for tables.'
+    write(memo)
+    click(button('button[value="save"]'))
+    expect(document.querySelector('dialog')).toBeNull()
+    expect(JSON.parse(JSON.parse(localStorage.getItem('state')!).tilemap).memos).toEqual([
+      { pos: [2, 4, 0], memo },
+    ])
+    expect(pin()?.getAttribute('title')).toBe(memo)
+    expect(pin()?.getAttribute('aria-label')).toBe('Edit memo at 2, 4, 0F')
+
+    await unmount(editor)
+    editor = mount(Tilemap, { target: document.body })
+    flushSync()
+    press('e')
+    expect(pin()).toBeNull()
+    press('c')
+    click(pin()!)
+    expect(editorText().value).toBe(memo)
+    write('Unsaved draft')
+    click(button('button[value="cancel"]'))
+    expect(pin()?.getAttribute('title')).toBe(memo)
+
+    click(button('#action-memo'))
+    press('Enter')
+    write('Great hall')
+    click(button('button[value="save"]'))
+    expect(pin()?.getAttribute('title')).toBe('Great hall')
+    click(pin()!)
+    click(button('button[value="delete"]'))
+    expect(pin()).toBeNull()
+    click(button('#action-undo'))
+    expect(pin()?.getAttribute('title')).toBe('Great hall')
+    click(button('#action-undo'))
+    expect(pin()?.getAttribute('title')).toBe(memo)
+    click(button('#action-redo'))
+    expect(pin()?.getAttribute('title')).toBe('Great hall')
+  } finally {
+    await unmount(editor)
+    vi.restoreAllMocks()
+    localStorage.removeItem('state')
+  }
+})
+
 test('one Escape leaves Leather Works and enables the Mine shortcut', async () => {
   const editor = mount(Tilemap, { target: document.body })
   try {

@@ -14,6 +14,11 @@ export class CommandManager {
   cursor = 0
   private groupHistory?: CommandManager
 
+  clear() {
+    this.commands.length = 0
+    this.cursor = 0
+  }
+
   group<T>(edit: () => T): T {
     const history = new CommandManager()
     const parent = this.groupHistory

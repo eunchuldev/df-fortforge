@@ -97,6 +97,7 @@ test('cut and undo affect all selected layers together and preserve the rest of 
   const hive = workshops.buildWorkshop('Hive', [2, 1, 0])
   const loom = workshops.buildWorkshop('Loom', [3, 1, 0])
   tilemap.putTiles([{ pos: [2, 1, 0], tile: Tile.Wall, character: 'H' }])
+  tilemap.setAnnotation([2, 1, 0], 'memo', 'Check bee access')
   tilemap.dig([2, 1, 0, 0, 0, 0])
 
   const clipboard = copySelection(
@@ -109,6 +110,7 @@ test('cut and undo affect all selected layers together and preserve the rest of 
   )!
   expect(tilemap.tileAt([2, 1, 0])).toBe(Tile.Wall)
   expect(tilemap.characterAt([2, 1, 0])).toBeUndefined()
+  expect(tilemap.memoAt([2, 1, 0])).toBeUndefined()
   expect(labels.get(hall.id)?.tileCount).toBe(2)
   expect(labels.labelsAt([2, 1, 0])).toEqual([])
   expect(labels.hotkeys).toMatchObject({ F1: null, F2: null })
@@ -117,6 +119,7 @@ test('cut and undo affect all selected layers together and preserve the rest of 
   history.undo()
   expect(tilemap.tileAt([2, 1, 0])).toBe(Tile.Floor)
   expect(tilemap.characterAt([2, 1, 0])).toBe('H')
+  expect(tilemap.memoAt([2, 1, 0])).toBe('Check bee access')
   expect(labels.get(hall.id)?.tileCount).toBe(3)
   expect(labels.get(office.id)?.name).toBe('Office')
   expect(labels.hotkeys).toMatchObject({ F1: office.id, F2: office.id })
@@ -128,6 +131,7 @@ test('cut and undo affect all selected layers together and preserve the rest of 
   pasteSelection(plan, clipboard, [8, 7, 1])
   expect(tilemap.tileAt([8, 7, 1])).toBe(Tile.Floor)
   expect(tilemap.characterAt([8, 7, 1])).toBe('H')
+  expect(tilemap.memoAt([8, 7, 1])).toBe('Check bee access')
   expect(labels.labelsAt([8, 7, 1]).map((label) => label.name)).toEqual(['Hall', 'Office'])
   expect(workshops.labelsAt([8, 7, 1])[0].name).toBe('Hive')
 })

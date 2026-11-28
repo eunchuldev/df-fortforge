@@ -70,25 +70,33 @@ test('old fort tiles keep their floors when adding upper levels, resizing, and r
   ])
 })
 
-test('character overlays follow overlapping selections, undo, and resizing', () => {
+test('characters and memos follow overlapping selections, undo, and resizing', () => {
   const history = new CommandManager()
   const map = new TilemapCommand(history, [4, 4, 1])
   const a: Pos = [1, 1, -1]
   const b: Pos = [2, 1, -1]
   map.putTiles([
     { pos: a, tile: Tile.Floor, character: 'A' },
-    { pos: b, tile: Tile.Wall, character: 'B' },
+    { pos: b, tile: Tile.Wall, memo: 'Reserve for pumps' },
   ])
+  map.setAnnotation(b, 'character', 'B')
   const before = map.serialize()
   map.flip2d([a, b, a])
   expect(map.characterAt(a)).toBe('B')
   expect(map.characterAt(b)).toBe('A')
+  expect(map.memoAt(a)).toBe('Reserve for pumps')
+  expect(map.memoAt(b)).toBeUndefined()
   history.undo()
   expect(map.tilesAt([a, b]).map(({ character }) => character)).toEqual(['A', 'B'])
+  expect(map.memoAt(b)).toBe('Reserve for pumps')
   history.redo()
   map.resize([2, 2, 1])
   expect(map.characterAt(a)).toBe('B')
+  expect(map.memoAt(a)).toBe('Reserve for pumps')
   expect(map.characterAt(b)).toBeUndefined()
   map.deserialize(before)
   expect(map.characterAt(b)).toBe('B')
+  expect(map.memoAt(b)).toBe('Reserve for pumps')
+  map.resize([2, 2, 1])
+  expect([...map.getMemos()]).toEqual([])
 })
